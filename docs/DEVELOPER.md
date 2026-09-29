@@ -92,8 +92,11 @@ jocky/
 | **JOCKY AST** | `IMPLEMENTED` | Strongly typed dataclasses for statements, comparisons, and binary conditions. |
 | **JOCKY Planner** | `IMPLEMENTED` | Compiles AST into versioned, deterministic JSON execution plans. |
 | **Go Agent Runtime** | `IMPLEMENTED` | Strongly typed plan unmarshaling, validation, translation, and concurrency. |
-| **Go Collectors** | `SCAFFOLDED` | `Collector` interface & `Registry` active; 10 targets return `ErrNotImplemented`. |
-| **Agent Transport** | `NOT STARTED` | Transport interface defined; network mTLS/gRPC deferred to future phase. |
+| **Collector Interface & Registry** | `IMPLEMENTED` | Thread-safe `Collector` interface and `Registry` with runtime resolution. |
+| **Process Collector** | `IMPLEMENTED + VERIFIED` | Live read-only OS process enumeration on Windows (Toolhelp32, WinVerifyTrust) and Linux (/proc). |
+| **Network Collector** | `IMPLEMENTED + VERIFIED` | Live read-only TCP/UDP connection & listening socket inspection on Windows (iphlpapi) and Linux (/proc/net). |
+| **Other Collectors** | `SCAFFOLDED` | 8 targets (`files`, `drivers`, `services`, `autoruns`, `scheduled_tasks`, `users`, `sessions`, `event_logs`) return explicit `ErrNotImplemented`. |
+| **Agent Transport** | `NOT STARTED` | Transport interface defined; network mTLS/gRPC deferred to Phase 4. |
 | **Detection Engine** | `NOT STARTED` | Stubs and AST flag instructions prepared. |
 | **Database Persistence** | `SCAFFOLDED` | Async session configured; schema migrations deferred. |
 | **mTLS Security** | `NOT STARTED` | Deferred to agent/server transport phase. |
@@ -104,15 +107,41 @@ jocky/
 ## 6. Current Development Position
 
 ### Last Completed Task
-Phase 2 — Go Agent Execution Foundation.
-
-### Current Task
-Phase 2 verification and developer documentation update (Complete).
+Phase 3 — Core Forensic Collectors (Process & Network Telemetry).
 
 ### Last Verified State
-- Backend Pytest Suite: **42 passed** in 0.46s.
-- Go Agent Test Suite: **15 passed** in 0.45s.
-- Go Agent Executable: Built cleanly to `agent/bin/jocky-agent.exe` and verified via `--one-shot`.
+- **Backend Pytest Suite**: **42 / 42 passed** (100% passing in 0.46s).
+- **Go Agent Test Suite**: **17 / 17 passed** (including process/network collection, registry resolution, error handling, cancellation, and end-to-end plan execution).
+- **Go Agent Executable**: Built cleanly to `agent/bin/jocky-agent.exe` and verified via `--one-shot`.
+
+### Current Working Functionality
+1. **JOCKY Language Compilation**: Lexes, parses, verifies AST safety rules, and generates version 1 JSON execution plans.
+2. **Go Agent Plan Execution**: Validates typed execution plans, translates statements to internal requests, and dispatches collectors concurrently.
+3. **Live Process Telemetry**:
+   - **Windows**: Enumerates PIDs, PPIDs, process names, executable paths, command lines, security usernames via Windows APIs (`CreateToolhelp32Snapshot`, `QueryFullProcessImageNameW`, `OpenProcessToken`/`LookupAccountSidW`), and Authenticode signatures via `WinVerifyTrust` with thread-safe caching.
+   - **Linux**: Enumerates PIDs, PPIDs, process names, executable paths, command lines, and UID/usernames via `/proc` filesystem (`/proc/[pid]/exe`, `/proc/[pid]/cmdline`, `/proc/[pid]/status`) with explicit `signature_status: "unsupported"`.
+4. **Live Network Telemetry**:
+   - **Windows**: Enumerates active listening sockets and TCP/UDP connections with local/remote IP addresses, ports, connection states, and owning PIDs via `iphlpapi.dll` (`GetExtendedTcpTable`, `GetExtendedUdpTable`).
+   - **Linux**: Parses active IPv4/IPv6 TCP and UDP sockets from `/proc/net/tcp`, `/proc/net/tcp6`, `/proc/net/udp`, `/proc/net/udp6`, resolving socket inodes to owning process PIDs.
+5. **Normalized Artifact Boundary**: Produces standardized `Artifact` structures (`type: "process"`, `type: "network_connection"`) across all platforms.
+6. **Robust Error Handling**: Resilient to permission errors (`ACCESS_DENIED`), transient process lifecycles, and context cancellations without crashing or returning fake data.
+
+### Current Limitations
+1. **Remaining Collectors**: 8 targets (`files`, `drivers`, `services`, `autoruns`, `scheduled_tasks`, `users`, `sessions`, `event_logs`) remain explicit placeholders returning `ErrNotImplemented`.
+2. **Transport Layer**: The agent operates standalone in memory and via CLI `--one-shot`; mTLS/gRPC agent-to-server communication is not yet wired.
+3. **Detection Engine**: Artifacts are collected into memory; rule evaluation (YARA/Sigma/heuristics) is not yet active.
+
+### Current Contracts
+- **JOCKY Execution Plan**: Python compiler $\rightarrow$ JSON execution plan (`version: "1"`).
+- **Agent Runtime**: JSON plan $\rightarrow$ Go runtime validator $\rightarrow$ typed instruction dispatch.
+- **Collector Boundary**: `Collector` interface (`Collect(ctx, req) ([]Artifact, error)`) $\rightarrow$ normalized `Artifact` model (`ID`, `Type`, `Target`, `Timestamp`, `HostID`, `Data`, `Metadata`).
+
+### Next Recommended Step
+**Phase 4 — Agent-Server Transport & Heartbeat (mTLS / HTTP Dispatch)**:
+Implement the network communication layer between the FastAPI backend and Go agent:
+1. Endpoint registration and heartbeat handshake over authenticated HTTP/mTLS.
+2. Job polling / dispatch mechanism allowing the backend to push compiled JOCKY execution plans to agents.
+3. Secure artifact ingestion endpoint in the backend for storing and streaming collected artifacts.
 
 ---
 
@@ -137,6 +166,17 @@ Phase 2 verification and developer documentation update (Complete).
 - Implemented `TranslatePlan` converting plans into typed `CollectionRequest`, `HashRequest`, `CheckRequest`, `FlagInstruction`, and `ReportInstruction`.
 - Built `AgentRuntime.ExecutePlan` with concurrent collection worker orchestration and `context.Context` cancellation propagation.
 - Verified with 15 Go tests.
+
+### Phase 3 — Core Forensic Collectors (Process & Network Telemetry)
+- Implemented `ProcessCollector` in `agent/internal/collectors/processes.go`:
+  - **Windows** (`processes_windows.go`): `CreateToolhelp32Snapshot` process iteration, `QueryFullProcessImageNameW`, process token SID lookup for username, and Authenticode signature verification via `WinVerifyTrust` with thread-safe caching and revocation skip flags for high performance.
+  - **Linux** (`processes_linux.go`): Read-only `/proc` inspection (`/proc/[pid]/exe`, `/proc/[pid]/cmdline`, `/proc/[pid]/status`) with explicit `signature_status: "unsupported"`.
+- Implemented `NetworkCollector` in `agent/internal/collectors/network.go`:
+  - **Windows** (`network_windows.go`): TCP and UDP socket enumeration (listening and established) using `iphlpapi.dll` (`GetExtendedTcpTable`, `GetExtendedUdpTable`).
+  - **Linux** (`network_linux.go`): Read-only `/proc/net/tcp`, `/proc/net/tcp6`, `/proc/net/udp`, `/proc/net/udp6` parsing with socket inode-to-PID resolution.
+- Updated `NewDefaultRegistry()`: Replaced placeholder collectors for `processes` and `connections` with real collectors while retaining explicit placeholders for the remaining 8 targets.
+- Maintained zero breaking changes to existing contracts.
+- Added comprehensive unit tests and end-to-end plan execution verification (17 / 17 Go tests passing).
 
 ---
 

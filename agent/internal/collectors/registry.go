@@ -91,11 +91,31 @@ var DefaultTargets = []string{
 	"event_logs",
 }
 
-// NewDefaultRegistry initializes a registry populated with the 10 placeholder collectors.
+// PlaceholderTargets lists targets that remain scaffolded as placeholders in Phase 3.
+var PlaceholderTargets = []string{
+	"files",
+	"drivers",
+	"services",
+	"autoruns",
+	"scheduled_tasks",
+	"users",
+	"sessions",
+	"event_logs",
+}
+
+// NewDefaultRegistry initializes a registry populated with the real Process & Network collectors
+// and placeholders for the remaining 8 targets.
 func NewDefaultRegistry() *Registry {
 	reg := NewRegistry()
-	for _, target := range DefaultTargets {
+
+	// 1. Real Forensic Collectors (Phase 3)
+	reg.Register(NewProcessCollector())
+	reg.Register(NewNetworkCollector())
+
+	// 2. Placeholder Collectors (Deferred to subsequent phases)
+	for _, target := range PlaceholderTargets {
 		reg.Register(NewPlaceholderCollector(target))
 	}
+
 	return reg
 }
