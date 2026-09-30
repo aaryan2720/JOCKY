@@ -156,13 +156,8 @@ class ArtifactService:
         # Broadcast Live Events to Connected WebSocket Clients & Update Job Status
         try:
             from app.api.websocket.jobs import manager as ws_manager
-            from app.services.job_service import JobService
-
-            job_svc = JobService.get_instance() if hasattr(JobService, "get_instance") else JobService()
-            if hasattr(job_svc, "complete_job"):
-                await job_svc.complete_job(effective_job_id)
-            elif hasattr(job_svc, "update_job_status"):
-                await job_svc.update_job_status(effective_job_id, "completed")
+            job_svc = JobService(session_factory=self._session_factory)            
+            await job_svc.complete_job(effective_job_id)
 
             for record in persisted:
                 target_job = record.job_id if record.job_id != "unknown-job" else effective_job_id
