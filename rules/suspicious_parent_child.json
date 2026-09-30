@@ -1,0 +1,37 @@
+[
+  {
+    "parent": "wmiprvse.exe",
+    "child": "powershell.exe",
+    "severity": "high",
+    "title": "PowerShell spawned from WMI Provider Host",
+    "description": "PowerShell execution initiated via WMI Provider Host (wmiprvse.exe), commonly associated with remote execution or lateral movement."
+  },
+  {
+    "parent": "winword.exe",
+    "child": "cmd.exe",
+    "severity": "critical",
+    "title": "Command shell spawned from Microsoft Word",
+    "description": "Command prompt spawned directly from Microsoft Word executable, characteristic of macro exploitation or malicious document execution."
+  },
+  {
+    "parent": "excel.exe",
+    "child": "powershell.exe",
+    "severity": "critical",
+    "title": "PowerShell spawned from Microsoft Excel",
+    "description": "PowerShell spawned directly from Microsoft Excel executable, characteristic of macro exploitation."
+  },
+  {
+    "parent": "nginx",
+    "child": "bash",
+    "severity": "high",
+    "title": "Interactive shell spawned from web server",
+    "description": "Nginx web server spawned a bash shell, indicating possible web shell or remote command execution."
+  },
+  {
+    "parent": "apache2",
+    "child": "sh",
+    "severity": "high",
+    "title": "Shell spawned from Apache web server",
+    "description": "Apache web server process spawned a shell, indicating possible web application compromise."
+  }
+]

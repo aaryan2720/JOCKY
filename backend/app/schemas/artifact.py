@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import List, Dict, Any
-from pydantic import BaseModel, ConfigDict
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ArtifactBase(BaseModel):
@@ -11,7 +11,8 @@ class ArtifactBase(BaseModel):
 
 
 class ArtifactCreate(ArtifactBase):
-    pass
+    id: Optional[str] = None
+    collected_at: Optional[datetime] = None
 
 
 class ArtifactRead(ArtifactBase):
@@ -19,6 +20,10 @@ class ArtifactRead(ArtifactBase):
     collected_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ArtifactBulkCreate(BaseModel):
+    artifacts: List[ArtifactCreate]
 
 
 class ArtifactListResponse(BaseModel):
