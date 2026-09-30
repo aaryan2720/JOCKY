@@ -1,6 +1,12 @@
 import React from 'react'
-import { ScriptEditorPlaceholder } from '../features/editor/ScriptEditorPlaceholder'
+import { ScriptEditor } from '../features/editor/ScriptEditor'
+import { NavTab } from '../components/layout/Sidebar'
 
-export const EditorPage: React.FC = () => {
-  return <ScriptEditorPlaceholder />
+interface EditorPageProps {
+  initialAgentId?: string
+  onNavigate?: (tab: NavTab, context?: { jobId?: string; agentId?: string }) => void
+}
+
+export const EditorPage: React.FC<EditorPageProps> = ({ initialAgentId, onNavigate }) => {
+  return <ScriptEditor initialAgentId={initialAgentId} onNavigate={onNavigate} />
 }

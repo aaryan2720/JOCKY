@@ -78,8 +78,16 @@ class JockyParser:
     Transforms a stream of tokens into a strongly-typed AST (Program).
     """
 
-    def __init__(self, tokens: Optional[List[Token]] = None):
-        self.tokens: List[Token] = tokens or []
+    def __init__(self, source_or_tokens: Optional[Any] = None):
+        if isinstance(source_or_tokens, str):
+            from app.jocky.lexer.lexer import JockyLexer
+            self.tokens = JockyLexer(source_or_tokens).tokenize()
+        elif isinstance(source_or_tokens, list):
+            self.tokens = list(source_or_tokens)
+            if self.tokens and self.tokens[-1].type != TokenType.EOF:
+                self.tokens.append(Token(TokenType.EOF, None, self.tokens[-1].line, self.tokens[-1].column))
+        else:
+            self.tokens = []
         self.cursor: int = 0
 
     def _peek(self, offset: int = 0) -> Token:
@@ -127,15 +135,20 @@ class JockyParser:
         statements: List[Statement] = []
 
         if not self.tokens or (len(self.tokens) == 1 and self.tokens[0].type == TokenType.EOF):
-            raise JockyParserError("Empty script: expected at least one statement", 1, 1, expected="STATEMENT", actual="EOF")
+            return Program(statements=[])
 
         while not self._is_at_end():
+            while self._match(TokenType.SEMICOLON):
+                pass
+            if self._is_at_end():
+                break
             stmt = self._parse_statement()
             statements.append(stmt)
+            while self._match(TokenType.SEMICOLON):
+                pass
 
         if not statements:
-            tok = self._peek()
-            raise JockyParserError("Expected at least one statement", tok.line, tok.column, expected="STATEMENT", actual=tok.type.name)
+            return Program(statements=[])
 
         return Program(statements=statements, line=statements[0].line, column=statements[0].column)
 

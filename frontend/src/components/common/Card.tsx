@@ -1,7 +1,7 @@
 import React from 'react'
 import { cn } from '../../lib/utils'
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode
   className?: string
   title?: string
@@ -15,6 +15,7 @@ export const Card: React.FC<CardProps> = ({
   title,
   subtitle,
   action,
+  ...props
 }) => {
   return (
     <div
@@ -22,7 +23,9 @@ export const Card: React.FC<CardProps> = ({
         'bg-[#111726]/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 shadow-xl transition-all duration-200 hover:border-slate-700/80',
         className
       )}
+      {...props}
     >
+
       {(title || action) && (
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800/60">
           <div>

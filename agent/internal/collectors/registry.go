@@ -1,64 +1,41 @@
 package collectors
 
 import (
-	"context"
-	"fmt"
+	"sort"
 	"sync"
 )
 
-// PlaceholderCollector is a placeholder implementation that explicitly returns ErrNotImplemented.
-// Stubs must never return fabricated or fake forensic telemetry.
-type PlaceholderCollector struct {
-	targetName string
-}
-
-// NewPlaceholderCollector creates a placeholder collector for a specific target.
-func NewPlaceholderCollector(targetName string) *PlaceholderCollector {
-	return &PlaceholderCollector{targetName: targetName}
-}
-
-func (p *PlaceholderCollector) Name() string {
-	return fmt.Sprintf("placeholder-%s", p.targetName)
-}
-
-func (p *PlaceholderCollector) Supports(target string) bool {
-	return target == p.targetName
-}
-
-func (p *PlaceholderCollector) Collect(ctx context.Context, request CollectionRequest) ([]Artifact, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
-		return nil, fmt.Errorf("%w: collector for target %q is not implemented in this phase", ErrNotImplemented, p.targetName)
-	}
-}
-
-// Registry maintains the collection of active forensic collectors.
+// Registry manages the set of available forensic telemetry collectors.
 type Registry struct {
 	mu         sync.RWMutex
-	collectors []Collector
+	collectors map[string]Collector
+	list       []Collector
 }
 
 // NewRegistry initializes an empty collector registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		collectors: make([]Collector, 0),
+		collectors: make(map[string]Collector),
+		list:       make([]Collector, 0),
 	}
 }
 
-// Register adds a collector to the registry.
+// Register adds or replaces a collector in the registry.
 func (r *Registry) Register(c Collector) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.collectors = append(r.collectors, c)
+	r.collectors[c.Name()] = c
+	r.list = append(r.list, c)
 }
 
 // Resolve returns the first registered collector that supports the given target.
 func (r *Registry) Resolve(target string) (Collector, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	for _, c := range r.collectors {
+	if c, ok := r.collectors[target]; ok {
+		return c, true
+	}
+	for _, c := range r.list {
 		if c.Supports(target) {
 			return c, true
 		}
@@ -66,15 +43,50 @@ func (r *Registry) Resolve(target string) (Collector, bool) {
 	return nil, false
 }
 
-// List returns the names of all registered collectors.
+// Get retrieves a collector by name.
+func (r *Registry) Get(name string) (Collector, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	c, ok := r.collectors[name]
+	if !ok {
+		return r.Resolve(name)
+	}
+	return c, ok
+}
+
+// List returns a sorted list of registered collector names.
 func (r *Registry) List() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.collectors))
-	for _, c := range r.collectors {
-		names = append(names, c.Name())
+	for name := range r.collectors {
+		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
+}
+
+// All returns a shallow copy of all registered collectors.
+func (r *Registry) All() map[string]Collector {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make(map[string]Collector, len(r.collectors))
+	for k, v := range r.collectors {
+		out[k] = v
+	}
+	return out
+}
+
+// IsPlaceholder returns true if the named collector is a placeholder.
+func (r *Registry) IsPlaceholder(name string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	c, ok := r.collectors[name]
+	if !ok {
+		return false
+	}
+	_, isPlaceholder := c.(*PlaceholderCollector)
+	return isPlaceholder
 }
 
 // DefaultTargets lists the 10 core forensic targets supported by JOCKY.
@@ -91,31 +103,31 @@ var DefaultTargets = []string{
 	"event_logs",
 }
 
-// PlaceholderTargets lists targets that remain scaffolded as placeholders in Phase 3.
+// PlaceholderTargets lists targets that remain scaffolded as placeholders.
 var PlaceholderTargets = []string{
 	"files",
 	"drivers",
 	"services",
-	"autoruns",
-	"scheduled_tasks",
-	"users",
-	"sessions",
 	"event_logs",
 }
 
-// NewDefaultRegistry initializes a registry populated with the real Process & Network collectors
-// and placeholders for the remaining 8 targets.
+// NewDefaultRegistry instantiates the default registry with all collectors.
 func NewDefaultRegistry() *Registry {
-	reg := NewRegistry()
+	r := NewRegistry()
 
-	// 1. Real Forensic Collectors (Phase 3)
-	reg.Register(NewProcessCollector())
-	reg.Register(NewNetworkCollector())
+	// 1. Real collectors
+	r.Register(NewProcessCollector())
+	r.Register(NewConnectionCollector())
+	r.Register(NewAutorunCollector())
+	r.Register(NewScheduledTaskCollector())
+	r.Register(NewUserCollector())
+	r.Register(NewSessionCollector())
 
-	// 2. Placeholder Collectors (Deferred to subsequent phases)
-	for _, target := range PlaceholderTargets {
-		reg.Register(NewPlaceholderCollector(target))
-	}
+	// 2. Placeholder collectors
+	r.Register(NewPlaceholderCollector("files"))
+	r.Register(NewPlaceholderCollector("drivers"))
+	r.Register(NewPlaceholderCollector("services"))
+	r.Register(NewPlaceholderCollector("event_logs"))
 
-	return reg
+	return r
 }

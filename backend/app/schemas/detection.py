@@ -1,15 +1,23 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class EvidenceReference(BaseModel):
+    artifact_id: str
+    type: str
+    details: Optional[Dict[str, Any]] = None
 
 
 class DetectionBase(BaseModel):
-    job_id: Optional[str] = None
     agent_id: str
-    rule: str
-    severity: str = "MEDIUM"
-    evidence: Dict[str, Any]
-    explanation: Optional[str] = None
+    job_id: Optional[str] = None
+    severity: str = "high"  # low, medium, high, critical
+    title: str
+    description: Optional[str] = None
+    rule_id: str
+    status: str = "open"  # open, acknowledged, resolved, false_positive
+    evidence: List[EvidenceReference] = Field(default_factory=list)
 
 
 class DetectionCreate(DetectionBase):
@@ -18,7 +26,7 @@ class DetectionCreate(DetectionBase):
 
 class DetectionRead(DetectionBase):
     id: str
-    detected_at: datetime
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

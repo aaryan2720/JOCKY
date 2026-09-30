@@ -1,9 +1,10 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from app.schemas.agent import (
     AgentHeartbeatRequest,
     AgentHeartbeatResponse,
     AgentListResponse,
+    AgentRead,
     AgentRegisterRequest,
     AgentRegisterResponse,
 )
@@ -15,11 +16,11 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
 def get_agent_service() -> AgentService:
-    return AgentService()
+    return AgentService.get_instance()
 
 
 def get_job_service() -> JobService:
-    return JobService()
+    return JobService.get_instance()
 
 
 @router.get("", response_model=AgentListResponse)
@@ -30,6 +31,21 @@ async def list_agents(
     """List all registered forensic agents across the fleet."""
     agents = await service.list_agents(status=status_filter)
     return AgentListResponse(total=len(agents), items=agents)
+
+
+@router.get("/{agent_id}", response_model=AgentRead)
+async def get_agent(
+    agent_id: str,
+    service: AgentService = Depends(get_agent_service),
+) -> AgentRead:
+    """Retrieve details for a specific registered agent."""
+    agent = await service.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+        )
+    return agent
 
 
 @router.post(

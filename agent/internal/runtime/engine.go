@@ -30,19 +30,22 @@ type ExecutionResult struct {
 	ParsedPlan        *ParsedPlan        `json:"parsed_plan"`
 }
 
-// AgentRuntime coordinates collector registries, execution plans, and local execution cycles.
+// AgentRuntime coordinates collector registries, execution plans, transport, and local execution cycles.
 type AgentRuntime struct {
-	Identity  *registration.Identity
-	Transport transport.Transport
-	Registry  *collectors.Registry
-	Detection detection.LocalEngine
+	Identity   *registration.Identity
+	Transport  transport.Transport
+	Registry   *collectors.Registry
+	Collectors map[string]collectors.Collector
+	Detection  detection.LocalEngine
 }
 
 // NewRuntime initializes a new forensic agent runtime with the default collector registry.
 func NewRuntime(identity *registration.Identity) *AgentRuntime {
+	reg := collectors.NewDefaultRegistry()
 	return &AgentRuntime{
-		Identity: identity,
-		Registry: collectors.NewDefaultRegistry(),
+		Identity:   identity,
+		Registry:   reg,
+		Collectors: reg.All(),
 	}
 }
 
@@ -123,6 +126,83 @@ func (r *AgentRuntime) ExecuteJob(ctx context.Context, jobID string, plan *Execu
 // ExecutePlan validates, translates, and concurrently executes forensic collection requests for a local execution cycle.
 func (r *AgentRuntime) ExecutePlan(ctx context.Context, plan *ExecutionPlan) (*ExecutionResult, error) {
 	return r.ExecuteJob(ctx, "job-local", plan)
+}
+
+// ExecutePlanArtifacts runs the collectors specified in a compiled JOCKY plan map and returns the collected artifacts.
+func (r *AgentRuntime) ExecutePlanArtifacts(ctx context.Context, plan map[string]interface{}) ([]collectors.Artifact, error) {
+	log.Printf("[Agent Runtime] Executing JOCKY plan...")
+	var allArtifacts []collectors.Artifact
+
+	var requested []string
+	if rawCollectors, ok := plan["collectors"].([]interface{}); ok {
+		for _, item := range rawCollectors {
+			if s, ok := item.(string); ok {
+				requested = append(requested, s)
+			} else if m, ok := item.(map[string]interface{}); ok {
+				if n, ok := m["name"].(string); ok {
+					requested = append(requested, n)
+				}
+			}
+		}
+	} else if strList, ok := plan["collectors"].([]string); ok {
+		requested = strList
+	}
+
+	if len(requested) == 0 {
+		return allArtifacts, nil
+	}
+
+	for _, name := range requested {
+		if err := ctx.Err(); err != nil {
+			return allArtifacts, fmt.Errorf("execution plan cancelled: %w", err)
+		}
+
+		collector, exists := r.Collectors[name]
+		if !exists {
+			if r.Registry != nil {
+				collector, exists = r.Registry.Get(name)
+			}
+		}
+
+		if !exists {
+			log.Printf("[Agent Runtime] Collector '%s' not registered, skipping", name)
+			continue
+		}
+
+		log.Printf("[Agent Runtime] Running collector '%s'...", name)
+		artifacts, err := collector.Collect(ctx, collectors.CollectionRequest{
+			Target:  name,
+			AgentID: func() string { if r.Identity != nil { return r.Identity.AgentID }; return "" }(),
+			JobID:   func() string { if j, ok := plan["job_id"].(string); ok { return j }; return "plan-job" }(),
+		})
+		if err != nil {
+			log.Printf("[Agent Runtime] Collector '%s' error: %v (continuing)", name, err)
+			continue
+		}
+
+		allArtifacts = append(allArtifacts, artifacts...)
+	}
+
+	// Submit via transport if configured
+	if r.Transport != nil && len(allArtifacts) > 0 {
+		jobID, _ := plan["job_id"].(string)
+		if jobID == "" {
+			jobID = "plan-job"
+		}
+		agentID := ""
+		if r.Identity != nil {
+			agentID = r.Identity.AgentID
+		}
+		if _, err := r.Transport.SubmitArtifacts(ctx, transport.ArtifactsSubmissionRequest{
+			JobID:     jobID,
+			AgentID:   agentID,
+			Artifacts: allArtifacts,
+		}); err != nil {
+			log.Printf("[Agent Runtime] Failed to submit artifacts: %v", err)
+		}
+	}
+
+	return allArtifacts, nil
 }
 
 // PollAndExecuteNextJob checks the transport for a queued job, executes it, and submits artifacts.

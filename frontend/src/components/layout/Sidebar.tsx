@@ -1,14 +1,15 @@
 import React from 'react'
 import {
+  LayoutDashboard,
   Server,
   Code2,
-  Rocket,
+  Activity,
   Layers,
   AlertTriangle,
-  FolderGit2,
+  ShieldCheck,
 } from 'lucide-react'
 
-export type NavTab = 'fleet' | 'editor' | 'deployments' | 'results' | 'threats'
+export type NavTab = 'dashboard' | 'fleet' | 'editor' | 'deployments' | 'results' | 'threats'
 
 interface SidebarProps {
   activeTab: NavTab
@@ -16,11 +17,12 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
-  const navItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
-    { id: 'fleet', label: 'Fleet Overview', icon: <Server className="w-4 h-4" /> },
+  const navItems: { id: NavTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'fleet', label: 'Fleet Agents', icon: <Server className="w-4 h-4" /> },
     { id: 'editor', label: 'JOCKY Editor', icon: <Code2 className="w-4 h-4" /> },
-    { id: 'deployments', label: 'Deployments', icon: <Rocket className="w-4 h-4" /> },
-    { id: 'results', label: 'Artifact Results', icon: <Layers className="w-4 h-4" /> },
+    { id: 'deployments', label: 'Jobs & Live Feed', icon: <Activity className="w-4 h-4" /> },
+    { id: 'results', label: 'Forensic Artifacts', icon: <Layers className="w-4 h-4" /> },
     { id: 'threats', label: 'Threat Detections', icon: <AlertTriangle className="w-4 h-4" /> },
   ]
 
@@ -29,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
       <div className="space-y-6">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-3 mb-2 font-mono">
-            Navigation
+            Forensic Operations
           </p>
           <nav className="space-y-1">
             {navItems.map((item) => {
@@ -57,15 +59,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
         </div>
       </div>
 
-      <div className="p-3 bg-[#111726]/60 border border-slate-800/60 rounded-xl text-xs text-slate-400 space-y-2">
-        <div className="flex items-center gap-2 text-slate-300 font-medium">
-          <FolderGit2 className="w-4 h-4 text-cyan-400" />
-          <span>Hackathon Scaffold</span>
+      <div className="p-3.5 bg-[#111726]/60 border border-slate-800/60 rounded-xl text-xs text-slate-400 space-y-2">
+        <div className="flex items-center gap-2 text-cyan-400 font-medium">
+          <ShieldCheck className="w-4 h-4" />
+          <span>Defensive DFIR Platform</span>
         </div>
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          Initial monorepo baseline active. Core collectors and interpreter modules will plug in here.
+        <p className="text-[11px] text-slate-400/80 leading-relaxed">
+          Read-only forensic collection, deterministic rule evaluation, and live artifact streaming.
         </p>
+        <div className="pt-1 flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>6 Active Real Collectors</span>
+        </div>
       </div>
     </aside>
   )
 }
+

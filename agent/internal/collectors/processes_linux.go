@@ -86,6 +86,7 @@ func parseLinuxProcDir(pid int) ProcessInfo {
 				ppidStr := strings.TrimSpace(strings.TrimPrefix(line, "PPid:"))
 				if ppid, err := strconv.Atoi(ppidStr); err == nil {
 					info.ParentPID = ppid
+					info.PPID = ppid
 				}
 			} else if strings.HasPrefix(line, "Uid:") {
 				uidFields := strings.Fields(strings.TrimPrefix(line, "Uid:"))

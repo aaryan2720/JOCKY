@@ -5,16 +5,16 @@ from app.jocky.errors import JockyLexerError
 
 class JockyLexer:
     """
-    Lexical analyzer for JOCKY DSL.
-    Tokenizes raw JOCKY source script into a stream of Token instances.
+    Deterministic lexical analyzer for the JOCKY forensic DSL.
+    Tracks line and column coordinates for descriptive error reporting.
     """
 
     def __init__(self, source: str):
-        self.source = source
-        self.length = len(source)
-        self.position = 0
-        self.line = 1
-        self.column = 1
+        self.source: str = source
+        self.length: int = len(source)
+        self.position: int = 0
+        self.line: int = 1
+        self.column: int = 1
 
     def _peek(self, offset: int = 0) -> Optional[str]:
         pos = self.position + offset
@@ -22,7 +22,9 @@ class JockyLexer:
             return self.source[pos]
         return None
 
-    def _advance(self) -> str:
+    def _advance(self) -> Optional[str]:
+        if self.position >= self.length:
+            return None
         char = self.source[self.position]
         self.position += 1
         if char == "\n":
@@ -36,23 +38,22 @@ class JockyLexer:
         tokens: List[Token] = []
 
         while self.position < self.length:
+            start_line = self.line
+            start_col = self.column
             char = self._peek()
 
-            # 1. Skip Whitespace
+            # 1. Whitespace
             if char in (" ", "\t", "\r", "\n"):
                 self._advance()
                 continue
 
-            # 2. Skip Comments starting with '#'
-            if char == "#":
+            # 2. Comments (# to end of line or // to end of line)
+            if char == "#" or (char == "/" and self._peek(1) == "/"):
                 while self.position < self.length and self._peek() != "\n":
                     self._advance()
                 continue
 
-            start_line = self.line
-            start_col = self.column
-
-            # 3. String Literals ("..." or '...')
+            # 3. String Literals ("string" or 'string')
             if char in ('"', "'"):
                 quote_type = self._advance()
                 value_chars = []
@@ -149,6 +150,26 @@ class JockyLexer:
             if char == ",":
                 self._advance()
                 tokens.append(Token(TokenType.COMMA, ",", start_line, start_col))
+                continue
+
+            if char == ";":
+                self._advance()
+                tokens.append(Token(TokenType.SEMICOLON, ";", start_line, start_col))
+                continue
+
+            if char == ":":
+                self._advance()
+                tokens.append(Token(TokenType.COLON, ":", start_line, start_col))
+                continue
+
+            if char == "(":
+                self._advance()
+                tokens.append(Token(TokenType.LPAREN, "(", start_line, start_col))
+                continue
+
+            if char == ")":
+                self._advance()
+                tokens.append(Token(TokenType.RPAREN, ")", start_line, start_col))
                 continue
 
             # 6. Identifiers, Keywords, Targets, Booleans

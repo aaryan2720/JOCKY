@@ -11,8 +11,11 @@ from app.jocky.ast.nodes import (
     HashStatement,
     CheckStatement,
     FlagStatement,
+    AlertStatement,
+    TargetStatement,
     ReportStatement,
     Program,
+    ScriptAST,
 )
 
 __all__ = [
@@ -28,6 +31,9 @@ __all__ = [
     "HashStatement",
     "CheckStatement",
     "FlagStatement",
+    "AlertStatement",
+    "TargetStatement",
     "ReportStatement",
     "Program",
+    "ScriptAST",
 ]

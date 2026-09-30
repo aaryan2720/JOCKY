@@ -1,3 +1,4 @@
+import json
 from typing import Dict, Any, List, Optional
 from app.jocky.lexer.tokens import Token, TokenType
 from app.jocky.lexer.lexer import JockyLexer
@@ -41,19 +42,22 @@ def parse_jocky(source: str) -> Program:
 def compile_jocky(source: str) -> Dict[str, Any]:
     """
     End-to-end compiler for JOCKY DSL.
-    Transforms raw source code into a JSON-compatible execution plan.
+    Transforms raw source code into a canonical JSON execution plan.
     Pipeline: Source -> Lexer -> Parser -> AST -> Planner -> Execution Plan.
     """
     ast = parse_jocky(source)
     planner = JockyPlanner(ast)
-    return planner.build_execution_plan()
+    plan = planner.build_execution_plan()
+    return {
+        "version": plan["version"],
+        "statements": plan["statements"],
+    }
 
 
 def compile_jocky_to_json(source: str, indent: int = 2) -> str:
-    """Compiles JOCKY DSL source code directly to a formatted JSON string."""
-    ast = parse_jocky(source)
-    planner = JockyPlanner(ast)
-    return planner.to_json(indent=indent)
+    """Compiles JOCKY DSL source code directly to a canonical formatted JSON string."""
+    plan = compile_jocky(source)
+    return json.dumps(plan, indent=indent, sort_keys=False)
 
 
 __all__ = [

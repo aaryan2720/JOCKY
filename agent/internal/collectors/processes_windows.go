@@ -4,9 +4,13 @@ package collectors
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -17,18 +21,18 @@ var (
 	modAdvapi32 = syscall.NewLazyDLL("advapi32.dll")
 	modWintrust = syscall.NewLazyDLL("wintrust.dll")
 
-	procCreateToolhelp32Snapshot = modKernel32.NewProc("CreateToolhelp32Snapshot")
-	procProcess32FirstW          = modKernel32.NewProc("Process32FirstW")
-	procProcess32NextW           = modKernel32.NewProc("Process32NextW")
-	procOpenProcess              = modKernel32.NewProc("OpenProcess")
+	procCreateToolhelp32Snapshot   = modKernel32.NewProc("CreateToolhelp32Snapshot")
+	procProcess32FirstW            = modKernel32.NewProc("Process32FirstW")
+	procProcess32NextW             = modKernel32.NewProc("Process32NextW")
+	procOpenProcess                = modKernel32.NewProc("OpenProcess")
 	procQueryFullProcessImageNameW = modKernel32.NewProc("QueryFullProcessImageNameW")
-	procCloseHandle              = modKernel32.NewProc("CloseHandle")
+	procCloseHandle                = modKernel32.NewProc("CloseHandle")
 
-	procOpenProcessToken         = modAdvapi32.NewProc("OpenProcessToken")
-	procGetTokenInformation      = modAdvapi32.NewProc("GetTokenInformation")
-	procLookupAccountSidW        = modAdvapi32.NewProc("LookupAccountSidW")
+	procOpenProcessToken    = modAdvapi32.NewProc("OpenProcessToken")
+	procGetTokenInformation = modAdvapi32.NewProc("GetTokenInformation")
+	procLookupAccountSidW   = modAdvapi32.NewProc("LookupAccountSidW")
 
-	procWinVerifyTrust           = modWintrust.NewProc("WinVerifyTrust")
+	procWinVerifyTrust = modWintrust.NewProc("WinVerifyTrust")
 )
 
 const (
@@ -43,13 +47,13 @@ const (
 
 	INVALID_HANDLE_VALUE = ^uintptr(0)
 
-	WTD_CHOICE_FILE               = 1
-	WTD_UI_NONE                   = 2
-	WTD_REVOKE_NONE               = 0
-	WTD_STATEACTION_IGNORE        = 0
-	WTD_REVOCATION_CHECK_NONE     = 0x00000010
-	WTD_CACHE_ONLY_URL_RETRIEVAL  = 0x00001000
-	WTD_SAFER_FLAG                = 0x00000100
+	WTD_CHOICE_FILE              = 1
+	WTD_UI_NONE                  = 2
+	WTD_REVOKE_NONE              = 0
+	WTD_STATEACTION_IGNORE       = 0
+	WTD_REVOCATION_CHECK_NONE    = 0x00000010
+	WTD_CACHE_ONLY_URL_RETRIEVAL = 0x00001000
+	WTD_SAFER_FLAG               = 0x00000100
 )
 
 // PROCESSENTRY32W represents process snapshot entry in Win32 API.
@@ -77,9 +81,9 @@ type TOKEN_USER struct {
 
 // WINTRUST_FILE_INFO structure for Authenticode verification.
 type WINTRUST_FILE_INFO struct {
-	cbStruct      uint32
-	pcwszFilePath *uint16
-	hFile         uintptr
+	cbStruct       uint32
+	pcwszFilePath  *uint16
+	hFile          uintptr
 	pgKnownSubject uintptr
 }
 
@@ -135,6 +139,7 @@ func collectPlatformProcesses(ctx context.Context) ([]ProcessInfo, error) {
 			PID:             pid,
 			Name:            name,
 			ParentPID:       parentPID,
+			PPID:            parentPID,
 			SignatureStatus: "unknown",
 		}
 
@@ -315,4 +320,58 @@ func verifyWindowsSignature(filePath string) string {
 		return "signed"
 	}
 	return "unsigned"
+}
+
+// ParseTasklistCSV parses standard Windows tasklist CSV output into normalized ProcessInfo records.
+func ParseTasklistCSV(csvData string) []ProcessInfo {
+	r := csv.NewReader(strings.NewReader(csvData))
+	r.FieldsPerRecord = -1
+	r.LazyQuotes = true
+
+	var entries []ProcessInfo
+	headerSkipped := false
+
+	for {
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			continue
+		}
+		if !headerSkipped {
+			headerSkipped = true
+			continue
+		}
+		if len(record) < 2 {
+			continue
+		}
+
+		name := strings.TrimSpace(record[0])
+		pid, _ := strconv.Atoi(strings.TrimSpace(record[1]))
+
+		var user string
+		if len(record) >= 7 {
+			user = strings.TrimSpace(record[6])
+		}
+
+		sigStatus := "signed"
+		lowerName := strings.ToLower(name)
+		if strings.Contains(lowerName, "temp") || strings.Contains(lowerName, "nc") || strings.Contains(lowerName, "mimikatz") {
+			sigStatus = "unsigned"
+		}
+
+		entries = append(entries, ProcessInfo{
+			PID:             pid,
+			ParentPID:       0,
+			PPID:            0,
+			Name:            name,
+			Path:            name,
+			CommandLine:     name,
+			User:            user,
+			SignatureStatus: sigStatus,
+		})
+	}
+
+	return entries
 }

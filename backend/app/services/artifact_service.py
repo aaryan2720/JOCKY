@@ -1,71 +1,205 @@
+import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from app.schemas.artifact import (
+    ArtifactCreate,
     ArtifactItem,
     ArtifactListResponse,
     ArtifactRead,
     ArtifactSubmissionRequest,
     ArtifactSubmissionResponse,
 )
-from app.services.job_service import JobService
+from app.services.detection_service import DetectionService
+
+logger = logging.getLogger(__name__)
 
 
 class ArtifactService:
-    """Business logic for forensic artifact ingestion, storage, and retrieval."""
+    """
+    Forensic artifact ingestion and querying service.
+    Coordinates evidence persistence, batch ingestion, and triggers post-ingestion adversary detection.
+    """
 
-    _artifacts: List[dict] = []
+    _instance: Optional["ArtifactService"] = None
+
+    def __init__(self, detection_service: Optional[DetectionService] = None):
+        self.detection_service = detection_service or DetectionService.get_instance()
+        self._artifacts: Dict[str, ArtifactRead] = {}
+
+    @classmethod
+    def get_instance(cls) -> "ArtifactService":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
     @classmethod
     def reset_state(cls) -> None:
-        """Helper for testing: reset artifact state."""
-        cls._artifacts.clear()
+        """Clear state for isolated test runs."""
+        instance = cls.get_instance()
+        instance._artifacts.clear()
+
+    def clear(self) -> None:
+        """Clear state for isolated test runs."""
+        self._artifacts.clear()
 
     async def ingest_artifacts(
-        self, payload: ArtifactSubmissionRequest
-    ) -> ArtifactSubmissionResponse:
-        """Ingest forensic artifacts submitted by an agent for a job."""
+        self,
+        artifacts: Union[ArtifactSubmissionRequest, ArtifactCreate, List[ArtifactCreate], Dict[str, Any], List[Dict[str, Any]]],
+        job_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        plan: Optional[Dict[str, Any]] = None,
+    ) -> Union[ArtifactSubmissionResponse, List[ArtifactRead]]:
+        """
+        Persists newly submitted forensic artifacts, then evaluates detection rules.
+        Supports both ArtifactSubmissionRequest DTO and list of artifacts.
+        """
+        is_submission_request = isinstance(artifacts, ArtifactSubmissionRequest)
         now = datetime.now(timezone.utc)
-        count = 0
 
-        for item in payload.artifacts:
-            art_id = item.id or str(uuid.uuid4())
-            ts = item.timestamp or now
-            self._artifacts.append(
-                {
-                    "id": art_id,
-                    "job_id": payload.job_id,
-                    "agent_id": payload.agent_id,
-                    "type": item.type,
-                    "target": item.target,
-                    "timestamp": ts,
-                    "host_id": item.host_id,
-                    "data": item.data,
-                    "metadata": item.metadata,
-                }
+        if is_submission_request:
+            req: ArtifactSubmissionRequest = artifacts
+            effective_job_id = req.job_id
+            effective_agent_id = req.agent_id
+            items = req.artifacts
+        elif isinstance(artifacts, list):
+            effective_job_id = job_id or "unknown-job"
+            effective_agent_id = agent_id or "unknown-agent"
+            items = artifacts
+        else:
+            effective_job_id = job_id or "unknown-job"
+            effective_agent_id = agent_id or "unknown-agent"
+            items = [artifacts]
+
+        persisted: List[ArtifactRead] = []
+
+        for item in items:
+            if isinstance(item, dict):
+                art_id = item.get("id") or f"art-{uuid.uuid4().hex[:12]}"
+                art_job_id = item.get("job_id") or effective_job_id
+                art_agent_id = item.get("agent_id") or effective_agent_id
+                art_type = item.get("type", "unknown")
+                art_target = item.get("target")
+                art_host_id = item.get("host_id")
+                art_data = item.get("data", {})
+                art_meta = item.get("metadata", {})
+                collected_at = item.get("timestamp") or item.get("collected_at") or now
+            else:
+                art_id = getattr(item, "id", None) or f"art-{uuid.uuid4().hex[:12]}"
+                art_job_id = getattr(item, "job_id", None) or effective_job_id
+                art_agent_id = getattr(item, "agent_id", None) or effective_agent_id
+                art_type = getattr(item, "type", "unknown")
+                art_target = getattr(item, "target", None)
+                art_host_id = getattr(item, "host_id", None)
+                art_data = getattr(item, "data", {})
+                art_meta = getattr(item, "metadata", {})
+                collected_at = getattr(item, "timestamp", None) or getattr(item, "collected_at", None) or now
+
+            if isinstance(collected_at, str):
+                try:
+                    collected_at = datetime.fromisoformat(collected_at.replace("Z", "+00:00"))
+                except Exception:
+                    collected_at = now
+
+            record = ArtifactRead(
+                id=art_id,
+                job_id=art_job_id,
+                agent_id=art_agent_id,
+                type=art_type,
+                target=art_target,
+                host_id=art_host_id,
+                data=art_data,
+                metadata=art_meta,
+                collected_at=collected_at,
+                timestamp=collected_at,
             )
-            count += 1
+            self._artifacts[art_id] = record
+            persisted.append(record)
 
-        # Mark originating job as completed
-        job_service = JobService()
-        await job_service.complete_job(payload.job_id)
+        # Trigger Detection Engine (guarded against failures)
+        new_detections = []
+        try:
+            new_detections = await self.detection_service.process_artifacts(
+                artifacts=persisted,
+                job_id=effective_job_id,
+                agent_id=effective_agent_id,
+                plan=plan,
+            )
+        except Exception as e:
+            logger.error(f"Detection engine error during artifact ingestion: {e}", exc_info=True)
 
-        return ArtifactSubmissionResponse(status="ok", ingested=count)
+        # Broadcast Live Events to Connected WebSocket Clients & Update Job Status
+        try:
+            from app.api.websocket.jobs import manager as ws_manager
+            from app.services.job_service import JobService
+
+            job_svc = JobService.get_instance() if hasattr(JobService, "get_instance") else JobService()
+            if hasattr(job_svc, "complete_job"):
+                await job_svc.complete_job(effective_job_id)
+            elif hasattr(job_svc, "update_job_status"):
+                await job_svc.update_job_status(effective_job_id, "completed")
+
+            for record in persisted:
+                target_job = record.job_id if record.job_id != "unknown-job" else effective_job_id
+                if target_job and target_job != "unknown-job":
+                    await ws_manager.broadcast_job_event(target_job, {
+                        "event": "artifact_collected",
+                        "job_id": target_job,
+                        "agent_id": record.agent_id,
+                        "timestamp": (record.collected_at or now).isoformat(),
+                        "payload": {
+                            "id": record.id,
+                            "type": record.type,
+                            "data": record.data,
+                        },
+                    })
+
+            if new_detections:
+                for det in new_detections:
+                    target_job = det.job_id if det.job_id != "unknown-job" else effective_job_id
+                    if target_job and target_job != "unknown-job":
+                        await ws_manager.broadcast_job_event(target_job, {
+                            "event": "threat_detected",
+                            "job_id": target_job,
+                            "detection": det.model_dump(mode="json"),
+                        })
+
+            if effective_job_id and effective_job_id != "unknown-job":
+                await ws_manager.broadcast_job_event(effective_job_id, {
+                    "event": "job_status",
+                    "job_id": effective_job_id,
+                    "status": "completed",
+                    "timestamp": now.isoformat(),
+                })
+        except Exception as ws_err:
+            logger.debug(f"Live job event broadcast notice: {ws_err}")
+
+        if is_submission_request:
+            return ArtifactSubmissionResponse(status="ok", ingested=len(persisted))
+
+        return persisted
 
     async def list_artifacts(
         self,
         job_id: Optional[str] = None,
         agent_id: Optional[str] = None,
         type_filter: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> List[ArtifactRead]:
-        """Retrieve collected forensic artifacts with optional filtering."""
-        results = []
-        for art in self._artifacts:
-            if job_id and art["job_id"] != job_id:
-                continue
-            if agent_id and art["agent_id"] != agent_id:
-                continue
-            if type_filter and art["type"] != type_filter:
-                continue
-            results.append(ArtifactRead(**art))
-        return results
+        """Query stored forensic artifacts with optional filtering."""
+        results = list(self._artifacts.values())
+
+        if job_id:
+            results = [a for a in results if a.job_id == job_id]
+        if agent_id:
+            results = [a for a in results if a.agent_id == agent_id]
+        if type_filter:
+            results = [a for a in results if a.type.lower() == type_filter.lower()]
+
+        results.sort(key=lambda a: a.collected_at or a.timestamp or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        return results[offset : offset + limit]
+
+    async def get_artifact(self, artifact_id: str) -> Optional[ArtifactRead]:
+        """Retrieve a specific forensic artifact by ID."""
+        return self._artifacts.get(artifact_id)

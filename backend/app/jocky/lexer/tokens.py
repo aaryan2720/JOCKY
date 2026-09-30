@@ -47,11 +47,14 @@ class TokenType(Enum):
     GTE = auto()         # >=
     LTE = auto()         # <=
     CONTAINS = auto()    # contains
-    # IN is in keywords and doubles as operator
 
     # Punctuation
     COMMA = auto()       # ,
     EQUALS = auto()      # =
+    SEMICOLON = auto()   # ;
+    COLON = auto()       # :
+    LPAREN = auto()      # (
+    RPAREN = auto()      # )
 
     # Special
     EOF = auto()

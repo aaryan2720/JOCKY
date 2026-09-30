@@ -20,9 +20,25 @@ class JockyPlanner:
         Builds the structured execution plan dictionary for the Go Agent / Runner.
         """
         statements = self.interpreter.evaluate_program()
+
+        collectors = []
+        checks = []
+        for s in statements:
+            if s.get("operation") == "collect":
+                collectors.extend(s.get("targets", []))
+            elif s.get("operation") == "scan":
+                target = s.get("target")
+                if target:
+                    collectors.append(target)
+            elif s.get("operation") == "check":
+                checks.append(s)
+
         return {
             "version": self.version,
+            "plan_version": f"{self.version}.0" if self.version == "1" else self.version,
             "statements": statements,
+            "collectors": collectors,
+            "checks": checks,
         }
 
     def to_json(self, indent: int = 2) -> str:

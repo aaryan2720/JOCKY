@@ -25,7 +25,7 @@ func NewNetworkCollector() *NetworkCollector {
 }
 
 func (c *NetworkCollector) Name() string {
-	return "network-collector"
+	return "connections"
 }
 
 func (c *NetworkCollector) Supports(target string) bool {
