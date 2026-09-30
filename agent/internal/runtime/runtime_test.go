@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jocky-dfir/jocky/agent/internal/collectors"
 	"github.com/jocky-dfir/jocky/agent/internal/registration"
 )
 
@@ -94,13 +95,13 @@ func TestAgentRuntimeExecutePlanWithPlaceholders(t *testing.T) {
 	}
 
 	rt := NewRuntime(ident)
+	rt.Registry.Register(collectors.NewPlaceholderCollector("custom_placeholder"))
+	rt.Collectors = rt.Registry.All()
+
 	plan := map[string]interface{}{
 		"plan_version": "1.0",
 		"collectors": []interface{}{
-			"files",
-			"drivers",
-			"services",
-			"event_logs",
+			"custom_placeholder",
 		},
 	}
 
@@ -109,8 +110,8 @@ func TestAgentRuntimeExecutePlanWithPlaceholders(t *testing.T) {
 		t.Fatalf("Placeholder plan execution should not fail: %v", err)
 	}
 
-	if len(artifacts) != 4 {
-		t.Errorf("Expected 4 placeholder artifacts, got %d", len(artifacts))
+	if len(artifacts) != 1 {
+		t.Errorf("Expected 1 placeholder artifact, got %d", len(artifacts))
 	}
 	for _, a := range artifacts {
 		if a.Data["status"] != "placeholder" {
@@ -143,9 +144,9 @@ func TestAgentRuntimeContextCancellation(t *testing.T) {
 }
 
 func TestAgentRuntimeTimeoutHandling(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
-	time.Sleep(15 * time.Millisecond) // expire timeout
+	time.Sleep(50 * time.Millisecond) // expire timeout
 
 	ident := &registration.Identity{
 		AgentID:  "agent-test-timeout",

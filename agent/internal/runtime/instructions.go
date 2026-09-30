@@ -77,11 +77,17 @@ func TranslatePlan(plan *ExecutionPlan, jobID string, agentID string) (*ParsedPl
 			}
 			for _, t := range targets {
 				tClean := strings.ToLower(strings.TrimSpace(t))
-				parsed.CollectionRequests = append(parsed.CollectionRequests, collectors.CollectionRequest{
+				req := collectors.CollectionRequest{
 					JobID:   jobID,
 					AgentID: agentID,
 					Target:  tClean,
-				})
+				}
+				if stmt.Path != "" {
+					req.Parameters = map[string]any{
+						"path": stmt.Path,
+					}
+				}
+				parsed.CollectionRequests = append(parsed.CollectionRequests, req)
 			}
 
 		case "hash":
@@ -97,6 +103,16 @@ func TranslatePlan(plan *ExecutionPlan, jobID string, agentID string) (*ParsedPl
 				Target:       target,
 				Path:         stmt.Path,
 				CheckAgainst: checkAgainst,
+			})
+			parsed.CollectionRequests = append(parsed.CollectionRequests, collectors.CollectionRequest{
+				JobID:   jobID,
+				AgentID: agentID,
+				Target:  target,
+				Parameters: map[string]any{
+					"path":          stmt.Path,
+					"hash":          true,
+					"check_against": checkAgainst,
+				},
 			})
 
 		case "check":

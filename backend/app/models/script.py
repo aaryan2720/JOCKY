@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, DateTime
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 
@@ -12,5 +13,8 @@ class ScriptModel(Base):
     description = Column(String(512), nullable=True)
     body = Column(Text, nullable=False)
     created_by = Column(String(128), default="analyst")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    jobs = relationship("JobModel", back_populates="script", lazy="selectin")

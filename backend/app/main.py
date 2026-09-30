@@ -7,10 +7,18 @@ from app.api.routes import api_v1_router, health_router
 from app.api.websocket import ws_jobs_router
 
 
+from app.db.session import init_db
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown event handling."""
-    # Startup: Initialize logging, db pool, etc.
+    # Startup: Initialize db schema tables
+    try:
+        await init_db()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Database initialization notice: {e}")
     yield
     # Shutdown: Clean up connections
 

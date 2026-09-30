@@ -2,10 +2,14 @@ package tests
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -133,7 +137,43 @@ func TestDefaultRegistryResolution(t *testing.T) {
 		t.Errorf("Expected 'connections' or 'network-collector', got '%s'", netCol.Name())
 	}
 
-	// Placeholders
+	// Real Files Collector
+	fileCol, found := reg.Resolve("files")
+	if !found {
+		t.Fatal("Failed to resolve 'files' collector")
+	}
+	if fileCol.Name() != "files" {
+		t.Errorf("Expected 'files', got '%s'", fileCol.Name())
+	}
+
+	// Real Services Collector
+	svcCol, found := reg.Resolve("services")
+	if !found {
+		t.Fatal("Failed to resolve 'services' collector")
+	}
+	if svcCol.Name() != "services" {
+		t.Errorf("Expected 'services', got '%s'", svcCol.Name())
+	}
+
+	// Real Drivers Collector
+	drvCol, found := reg.Resolve("drivers")
+	if !found {
+		t.Fatal("Failed to resolve 'drivers' collector")
+	}
+	if drvCol.Name() != "drivers" {
+		t.Errorf("Expected 'drivers', got '%s'", drvCol.Name())
+	}
+
+	// Real Event Logs Collector
+	evtCol, found := reg.Resolve("event_logs")
+	if !found {
+		t.Fatal("Failed to resolve 'event_logs' collector")
+	}
+	if evtCol.Name() != "event_logs" {
+		t.Errorf("Expected 'event_logs', got '%s'", evtCol.Name())
+	}
+
+	// Placeholders (0 in Phase 10)
 	for _, target := range collectors.PlaceholderTargets {
 		col, found := reg.Resolve(target)
 		if !found {
@@ -147,25 +187,17 @@ func TestDefaultRegistryResolution(t *testing.T) {
 
 // 4. Placeholder collectors return safe placeholder metadata
 func TestPlaceholderTargetsReturnErrNotImplemented(t *testing.T) {
-	reg := collectors.NewDefaultRegistry()
 	ctx := context.Background()
-
-	for _, target := range collectors.PlaceholderTargets {
-		col, found := reg.Resolve(target)
-		if !found {
-			t.Fatalf("Target '%s' not found in registry", target)
-		}
-
-		artifacts, err := col.Collect(ctx, collectors.CollectionRequest{Target: target})
-		if err != nil {
-			t.Fatalf("Target '%s' placeholder returned unexpected error: %v", target, err)
-		}
-		if len(artifacts) == 0 {
-			t.Fatalf("Target '%s' must return placeholder metadata artifact, got 0", target)
-		}
-		if artifacts[0].Data["status"] != "placeholder" {
-			t.Errorf("Target '%s' expected status 'placeholder', got %v", target, artifacts[0].Data["status"])
-		}
+	p := collectors.NewPlaceholderCollector("custom_placeholder_target")
+	artifacts, err := p.Collect(ctx, collectors.CollectionRequest{Target: "custom_placeholder_target"})
+	if err != nil {
+		t.Fatalf("Placeholder returned unexpected error: %v", err)
+	}
+	if len(artifacts) == 0 {
+		t.Fatal("Expected placeholder metadata artifact, got 0")
+	}
+	if artifacts[0].Data["status"] != "placeholder" {
+		t.Errorf("Expected status 'placeholder', got %v", artifacts[0].Data["status"])
 	}
 }
 
@@ -786,5 +818,165 @@ func TestPollAndExecuteNextJobEndToEnd(t *testing.T) {
 	}
 	if !hasProcess {
 		t.Error("Expected at least one 'process' artifact in submitted artifacts")
+	}
+}
+
+// 31. Runtime Execution Plan with File Collection and Hashing
+func TestFileCollectionAndHashingRuntimeIntegration(t *testing.T) {
+	tempDir := t.TempDir()
+	sampleFile := filepath.Join(tempDir, "target_forensic.bin")
+	data := []byte("forensic analysis payload test")
+	if err := os.WriteFile(sampleFile, data, 0644); err != nil {
+		t.Fatalf("Failed to create sample file: %v", err)
+	}
+	expectedHashBytes := sha256.Sum256(data)
+	expectedHash := hex.EncodeToString(expectedHashBytes[:])
+
+	plan := &runtime.ExecutionPlan{
+		Version: "1",
+		Statements: []runtime.ExecutionStatement{
+			{
+				Operation:    "hash",
+				Target:       "files",
+				Path:         sampleFile,
+				CheckAgainst: "reputation",
+			},
+		},
+	}
+
+	rt := runtime.NewRuntime(&registration.Identity{
+		AgentID:  "agent-test-file",
+		Hostname: "WIN-SRV-TEST",
+		OS:       "windows",
+		Arch:     "amd64",
+	})
+
+	ctx := context.Background()
+	result, err := rt.ExecuteJob(ctx, "job-file-hash-01", plan)
+	if err != nil {
+		t.Fatalf("ExecuteJob failed: %v", err)
+	}
+
+	if len(result.CollectionResults) == 0 {
+		t.Fatal("Expected collection results for file hash job, got 0")
+	}
+
+	var foundArtifact *collectors.Artifact
+	for _, res := range result.CollectionResults {
+		for _, art := range res.Artifacts {
+			if art.Type == "file" {
+				artCopy := art
+				foundArtifact = &artCopy
+				break
+			}
+		}
+	}
+
+	if foundArtifact == nil {
+		t.Fatal("Expected at least one 'file' artifact from hash statement execution")
+	}
+
+	if foundArtifact.Data["path"] != sampleFile {
+		t.Errorf("Expected artifact path '%s', got '%v'", sampleFile, foundArtifact.Data["path"])
+	}
+
+	if foundArtifact.Data["sha256"] != expectedHash {
+		t.Errorf("Expected SHA-256 hash '%s', got '%v'", expectedHash, foundArtifact.Data["sha256"])
+	}
+}
+
+// 32. Runtime Execution Plan with Services and Drivers Collection
+func TestServicesAndDriversRuntimeIntegration(t *testing.T) {
+	plan := &runtime.ExecutionPlan{
+		Version: "1",
+		Statements: []runtime.ExecutionStatement{
+			{
+				Operation: "collect",
+				Targets:   []string{"services", "drivers"},
+			},
+		},
+	}
+
+	rt := runtime.NewRuntime(&registration.Identity{
+		AgentID:  "agent-test-srv-drv",
+		Hostname: "WIN-SRV-TEST",
+		OS:       "windows",
+		Arch:     "amd64",
+	})
+
+	ctx := context.Background()
+	result, err := rt.ExecuteJob(ctx, "job-services-drivers-01", plan)
+	if err != nil {
+		t.Fatalf("ExecuteJob failed: %v", err)
+	}
+
+	if len(result.CollectionResults) != 2 {
+		t.Fatalf("Expected 2 collection results (services, drivers), got %d", len(result.CollectionResults))
+	}
+
+	var hasService, hasDriver bool
+	for _, res := range result.CollectionResults {
+		for _, art := range res.Artifacts {
+			if art.Type == "service" {
+				hasService = true
+			}
+			if art.Type == "driver" {
+				hasDriver = true
+			}
+		}
+	}
+
+	if !hasService {
+		t.Error("Expected at least one 'service' artifact")
+	}
+	if !hasDriver {
+		t.Error("Expected at least one 'driver' artifact")
+	}
+}
+
+// 33. Runtime Execution Plan with Event Logs Collection
+func TestEventLogsRuntimeIntegration(t *testing.T) {
+	plan := &runtime.ExecutionPlan{
+		Version: "1",
+		Statements: []runtime.ExecutionStatement{
+			{
+				Operation: "collect",
+				Targets:   []string{"event_logs"},
+			},
+		},
+	}
+
+	rt := runtime.NewRuntime(&registration.Identity{
+		AgentID:  "agent-test-events",
+		Hostname: "WIN-SRV-TEST",
+		OS:       "windows",
+		Arch:     "amd64",
+	})
+
+	ctx := context.Background()
+	result, err := rt.ExecuteJob(ctx, "job-event-logs-01", plan)
+	if err != nil {
+		t.Fatalf("ExecuteJob failed: %v", err)
+	}
+
+	if len(result.CollectionResults) != 1 {
+		t.Fatalf("Expected 1 collection result for event_logs, got %d", len(result.CollectionResults))
+	}
+
+	var hasEvent bool
+	for _, res := range result.CollectionResults {
+		for _, art := range res.Artifacts {
+			if art.Type == "event" {
+				hasEvent = true
+				if art.Data["channel"] == "" {
+					t.Errorf("Expected non-empty channel in event artifact")
+				}
+				break
+			}
+		}
+	}
+
+	if !hasEvent {
+		t.Error("Expected at least one 'event' artifact from collect event_logs execution")
 	}
 }

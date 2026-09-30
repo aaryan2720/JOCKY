@@ -38,16 +38,16 @@ func TestRegistryDefaults(t *testing.T) {
 func TestRegistryIsPlaceholder(t *testing.T) {
 	reg := NewDefaultRegistry()
 
-	// Real collectors in Phase 6
-	reals := []string{"autoruns", "scheduled_tasks", "users", "sessions", "processes", "connections"}
+	// Real collectors in Phase 10 (All 10 Core Targets)
+	reals := []string{"autoruns", "scheduled_tasks", "users", "sessions", "processes", "connections", "files", "services", "drivers", "event_logs"}
 	for _, name := range reals {
 		if reg.IsPlaceholder(name) {
 			t.Errorf("Expected collector '%s' to be REAL, but reported as placeholder", name)
 		}
 	}
 
-	// Placeholder collectors in Phase 6
-	placeholders := []string{"files", "drivers", "services", "event_logs"}
+	// Placeholder collectors in Phase 10 (0 placeholders remaining)
+	placeholders := []string{}
 	for _, name := range placeholders {
 		if !reg.IsPlaceholder(name) {
 			t.Errorf("Expected collector '%s' to be PLACEHOLDER, but reported as real", name)
@@ -57,8 +57,8 @@ func TestRegistryIsPlaceholder(t *testing.T) {
 
 func TestPlaceholderCollection(t *testing.T) {
 	ctx := context.Background()
-	p := NewPlaceholderCollector("files")
-	artifacts, err := p.Collect(ctx, CollectionRequest{Target: "files"})
+	p := NewPlaceholderCollector("custom_future_target")
+	artifacts, err := p.Collect(ctx, CollectionRequest{Target: "custom_future_target"})
 	if err != nil {
 		t.Fatalf("Placeholder collection should never error, got: %v", err)
 	}

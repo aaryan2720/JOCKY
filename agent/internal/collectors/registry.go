@@ -103,31 +103,24 @@ var DefaultTargets = []string{
 	"event_logs",
 }
 
-// PlaceholderTargets lists targets that remain scaffolded as placeholders.
-var PlaceholderTargets = []string{
-	"files",
-	"drivers",
-	"services",
-	"event_logs",
-}
+// PlaceholderTargets lists targets that remain scaffolded as placeholders (0 in Phase 10).
+var PlaceholderTargets = []string{}
 
-// NewDefaultRegistry instantiates the default registry with all collectors.
+// NewDefaultRegistry instantiates the default registry with all 10 core collectors.
 func NewDefaultRegistry() *Registry {
 	r := NewRegistry()
 
-	// 1. Real collectors
+	// 1. All 10 Core Real Collectors
 	r.Register(NewProcessCollector())
 	r.Register(NewConnectionCollector())
+	r.Register(NewFileCollector())
 	r.Register(NewAutorunCollector())
 	r.Register(NewScheduledTaskCollector())
 	r.Register(NewUserCollector())
 	r.Register(NewSessionCollector())
-
-	// 2. Placeholder collectors
-	r.Register(NewPlaceholderCollector("files"))
-	r.Register(NewPlaceholderCollector("drivers"))
-	r.Register(NewPlaceholderCollector("services"))
-	r.Register(NewPlaceholderCollector("event_logs"))
+	r.Register(NewServiceCollector())
+	r.Register(NewDriverCollector())
+	r.Register(NewEventLogCollector())
 
 	return r
 }
