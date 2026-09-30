@@ -10,6 +10,7 @@ import (
 
 	"github.com/jocky-dfir/jocky/agent/internal/registration"
 	"github.com/jocky-dfir/jocky/agent/internal/runtime"
+	"github.com/jocky-dfir/jocky/agent/internal/transport"
 )
 
 const (
@@ -38,12 +39,16 @@ func main() {
 		token = "jocky-agent-insecure-dev-token"
 	}
 
+	httpTransport := transport.NewHTTPTransport(serverURL, token)
+
 	ident, err := registration.Enroll(ctx, serverURL, token)
 	if err != nil {
 		log.Fatalf("Failed to initialize agent identity: %v", err)
 	}
 
 	agentRuntime := runtime.NewRuntime(ident)
+	agentRuntime.Transport = httpTransport
+
 	if err := agentRuntime.Start(ctx); err != nil {
 		log.Fatalf("Runtime error: %v", err)
 	}

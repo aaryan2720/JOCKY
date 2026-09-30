@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict
 class JobCreate(BaseModel):
     script_id: Optional[str] = None
     script_body: Optional[str] = None
+    plan: Optional[Dict[str, Any]] = None
     target_agent_ids: List[str] = Field(default_factory=list)
     target_tags: List[str] = Field(default_factory=list)
 
@@ -15,6 +16,11 @@ class JobResponse(BaseModel):
     status: str
     agent_count: int
     created_at: datetime
+
+
+class JobPollResponse(BaseModel):
+    job_id: Optional[str] = None
+    plan: Optional[Dict[str, Any]] = None
 
 
 class JobRead(BaseModel):

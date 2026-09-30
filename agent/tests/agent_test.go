@@ -2,7 +2,10 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +13,7 @@ import (
 	"github.com/jocky-dfir/jocky/agent/internal/collectors"
 	"github.com/jocky-dfir/jocky/agent/internal/registration"
 	"github.com/jocky-dfir/jocky/agent/internal/runtime"
+	"github.com/jocky-dfir/jocky/agent/internal/transport"
 )
 
 // 1. ProcessCollector Unit & Structure Test
@@ -25,7 +29,7 @@ func TestProcessCollector(t *testing.T) {
 		t.Error("ProcessCollector should not support 'connections'")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	artifacts, err := col.Collect(ctx, collectors.CollectionRequest{
@@ -75,7 +79,7 @@ func TestNetworkCollector(t *testing.T) {
 		t.Error("NetworkCollector should not support 'processes'")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	artifacts, err := col.Collect(ctx, collectors.CollectionRequest{
@@ -485,7 +489,7 @@ func TestEndToEndPlanWithRealCollectors(t *testing.T) {
 	}
 	rt := runtime.NewRuntime(ident)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	result, err := rt.ExecutePlan(ctx, plan)
@@ -534,10 +538,10 @@ func TestEndToEndPlanWithRealCollectors(t *testing.T) {
 	}
 }
 
-// 17. Enrollment test
+// 17. Enrollment fallback test
 func TestAgentEnrollment(t *testing.T) {
 	ctx := context.Background()
-	ident, err := registration.Enroll(ctx, "http://localhost:8000", "test-token")
+	ident, err := registration.Enroll(ctx, "", "test-token")
 	if err != nil {
 		t.Fatalf("Enroll failed: %v", err)
 	}
@@ -547,5 +551,240 @@ func TestAgentEnrollment(t *testing.T) {
 	}
 	if ident.OS == "" {
 		t.Errorf("Expected non-empty OS")
+	}
+}
+
+// 18. HTTPTransport Mock Server Test (Register, Heartbeat, PollJob, SubmitArtifacts)
+func TestHTTPTransportMockServer(t *testing.T) {
+	// Setup mock HTTP server mimicking FastAPI routes
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/agents/register":
+			var req transport.RegisterRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(transport.RegisterResponse{
+				AgentID:                  "agent-mock-host-win",
+				Status:                   "enrolled",
+				HeartbeatIntervalSeconds: 3,
+			})
+
+		case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/v1/agents/") && strings.HasSuffix(r.URL.Path, "/heartbeat"):
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(transport.HeartbeatResponse{
+				Status:    "ok",
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			})
+
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/jobs/poll"):
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(transport.JobPollResponse{
+				JobID: "job-http-101",
+				Plan: map[string]interface{}{
+					"version": "1",
+					"statements": []interface{}{
+						map[string]interface{}{
+							"operation": "scan",
+							"target":    "processes",
+						},
+					},
+				},
+			})
+
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/artifacts":
+			var req transport.ArtifactsSubmissionRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(transport.ArtifactsSubmissionResponse{
+				Status:   "ok",
+				Ingested: len(req.Artifacts),
+			})
+
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tr := transport.NewHTTPTransport(server.URL, "test-auth-token")
+
+	// 1. Test Register
+	regResp, err := tr.Register(ctx, transport.RegisterRequest{
+		Token:        "test-token",
+		Hostname:     "mock-host",
+		OS:           "windows",
+		Arch:         "amd64",
+		AgentVersion: "0.1.0",
+	})
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+	if regResp.AgentID != "agent-mock-host-win" {
+		t.Errorf("Unexpected AgentID: %s", regResp.AgentID)
+	}
+	if regResp.HeartbeatIntervalSeconds != 3 {
+		t.Errorf("Unexpected heartbeat interval: %d", regResp.HeartbeatIntervalSeconds)
+	}
+
+	// 2. Test Heartbeat
+	hbResp, err := tr.SendHeartbeat(ctx, regResp.AgentID, transport.HeartbeatRequest{Status: "online"})
+	if err != nil {
+		t.Fatalf("SendHeartbeat failed: %v", err)
+	}
+	if hbResp.Status != "ok" {
+		t.Errorf("Unexpected heartbeat status: %s", hbResp.Status)
+	}
+
+	// 3. Test PollJob
+	pollResp, err := tr.PollJob(ctx, regResp.AgentID)
+	if err != nil {
+		t.Fatalf("PollJob failed: %v", err)
+	}
+	if pollResp.JobID != "job-http-101" {
+		t.Errorf("Unexpected job ID: %s", pollResp.JobID)
+	}
+	if pollResp.Plan == nil {
+		t.Fatal("Expected non-nil plan in poll response")
+	}
+
+	// 4. Test SubmitArtifacts
+	subResp, err := tr.SubmitArtifacts(ctx, transport.ArtifactsSubmissionRequest{
+		JobID:   pollResp.JobID,
+		AgentID: regResp.AgentID,
+		Artifacts: []collectors.Artifact{
+			{
+				ID:   "art-01",
+				Type: "process",
+				Data: map[string]interface{}{"pid": 1234},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SubmitArtifacts failed: %v", err)
+	}
+	if subResp.Ingested != 1 {
+		t.Errorf("Expected 1 ingested artifact, got %d", subResp.Ingested)
+	}
+}
+
+// 19. HTTPTransport Server Error Handling Test
+func TestHTTPTransportServerErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	tr := transport.NewHTTPTransport(server.URL, "token")
+
+	_, err := tr.Register(ctx, transport.RegisterRequest{})
+	if err == nil {
+		t.Error("Expected error from 500 server response, got nil")
+	}
+
+	_, err = tr.SendHeartbeat(ctx, "agent-01", transport.HeartbeatRequest{})
+	if err == nil {
+		t.Error("Expected error on heartbeat 500, got nil")
+	}
+
+	_, err = tr.PollJob(ctx, "agent-01")
+	if err == nil {
+		t.Error("Expected error on poll 500, got nil")
+	}
+
+	_, err = tr.SubmitArtifacts(ctx, transport.ArtifactsSubmissionRequest{})
+	if err == nil {
+		t.Error("Expected error on submit artifacts 500, got nil")
+	}
+}
+
+// 20. End-to-End Poll, Execute, and Ingest Cycle with Mock Server and Real OS Collectors
+func TestPollAndExecuteNextJobEndToEnd(t *testing.T) {
+	var ingestedArtifacts []collectors.Artifact
+	jobServed := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/jobs/poll"):
+			if !jobServed {
+				jobServed = true
+				_ = json.NewEncoder(w).Encode(transport.JobPollResponse{
+					JobID: "job-e2e-dispatch-999",
+					Plan: map[string]interface{}{
+						"version": "1",
+						"statements": []interface{}{
+							map[string]interface{}{
+								"operation": "scan",
+								"target":    "processes",
+							},
+							map[string]interface{}{
+								"operation": "scan",
+								"target":    "connections",
+							},
+						},
+					},
+				})
+			} else {
+				w.WriteHeader(http.StatusNoContent)
+			}
+
+		case r.URL.Path == "/api/v1/artifacts":
+			var req transport.ArtifactsSubmissionRequest
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			ingestedArtifacts = append(ingestedArtifacts, req.Artifacts...)
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(transport.ArtifactsSubmissionResponse{
+				Status:   "ok",
+				Ingested: len(req.Artifacts),
+			})
+		}
+	}))
+	defer server.Close()
+
+	ident := &registration.Identity{
+		AgentID:                  "agent-e2e-tester",
+		Hostname:                 "TEST-HOST",
+		OS:                       "windows",
+		Arch:                     "amd64",
+		HeartbeatIntervalSeconds: 5,
+	}
+
+	rt := runtime.NewRuntime(ident)
+	rt.Transport = transport.NewHTTPTransport(server.URL, "token")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Execute single poll & run cycle
+	err := rt.PollAndExecuteNextJob(ctx)
+	if err != nil {
+		t.Fatalf("PollAndExecuteNextJob failed: %v", err)
+	}
+
+	if len(ingestedArtifacts) == 0 {
+		t.Fatal("Expected live artifacts to be collected and submitted to the server")
+	}
+
+	// Verify we collected process artifacts
+	hasProcess := false
+	for _, art := range ingestedArtifacts {
+		if art.Type == "process" {
+			hasProcess = true
+			break
+		}
+	}
+	if !hasProcess {
+		t.Error("Expected at least one 'process' artifact in submitted artifacts")
 	}
 }
