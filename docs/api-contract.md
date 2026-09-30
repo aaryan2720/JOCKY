@@ -54,8 +54,27 @@ List registered fleet agents with status and metadata filters.
 }
 ```
 
+### `GET /api/v1/agents/{agent_id}`
+Retrieve detailed registration and telemetry information for a specific agent.
+
+**Response `200 OK`**:
+```json
+{
+  "id": "agent-df84b2c1",
+  "hostname": "FIN-SRV-01",
+  "os": "windows",
+  "version": "0.1.0",
+  "status": "online",
+  "ip_address": "10.0.10.45",
+  "last_seen": "2026-09-29T12:00:00Z",
+  "cert_fingerprint": "sha256:4a8b...9f",
+  "tags": ["production", "finance"]
+}
+```
+
 ### `POST /api/v1/agents/register`
 Agent registration & enrollment endpoint.
+
 
 **Request Body**:
 ```json
@@ -132,8 +151,50 @@ Dispatches a compiled JOCKY execution plan to selected target agents.
 }
 ```
 
+### `GET /api/v1/jobs`
+List forensic job execution history.
+
+**Query Parameters**:
+- `agent_id`: Filter by target agent ID (optional)
+- `status`: Filter by job status (`queued`, `running`, `completed`, `failed`) (optional)
+
+**Response `200 OK`**:
+```json
+[
+  {
+    "id": "job-78a9c2b0",
+    "script_id": "script-pers-001",
+    "status": "completed",
+    "target_agents": ["agent-win-prod-01"],
+    "plan": {
+      "plan_version": "1.0",
+      "collectors": [{"target": "processes"}, {"target": "connections"}]
+    },
+    "created_at": "2026-09-30T10:00:00Z",
+    "completed_at": "2026-09-30T10:00:05Z"
+  }
+]
+```
+
 ### `GET /api/v1/jobs/{job_id}`
-Get job execution state and summary metrics.
+Get job execution state, plan metadata, and summary metrics.
+
+**Response `200 OK`**:
+```json
+{
+  "id": "job-78a9c2b0",
+  "script_id": "script-pers-001",
+  "status": "completed",
+  "target_agents": ["agent-win-prod-01"],
+  "plan": {
+    "plan_version": "1.0",
+    "collectors": [{"target": "processes"}, {"target": "connections"}]
+  },
+  "created_at": "2026-09-30T10:00:00Z",
+  "completed_at": "2026-09-30T10:00:05Z"
+}
+```
+
 
 ---
 

@@ -18,189 +18,174 @@
 | Event log collector | PLACEHOLDER |
 | Agent transport | IMPLEMENTED |
 | Detection engine | IMPLEMENTED |
-| Dashboard | NOT STARTED |
+| Dashboard | IMPLEMENTED |
 
 ---
 
 ## 1. Last Completed Task
-**Phase 6 — Persistence & Identity Collectors**
+**Phase 7 — Frontend React Dashboard & Live Forensic Triage Interface**
 
 ---
 
 ## 2. Last Verified State
 
+- **Frontend React / TypeScript Build & Tests**:
+  - `npm test` (Vitest v1.6.0) -> **12/12 tests PASSED** in 2.74s across API client, error handling, telemetry normalization, and WebSocket protocol handling.
+  - `npm run build` (`tsc && vite build`) -> **Production build SUCCESSFUL** (1517 modules transformed, 0 TypeScript errors, bundle size: 241 kB JS / 27 kB CSS).
+- **Python Backend Test Suite**:
+  - `python -m pytest -v` -> **62/62 tests PASSED** in 1.25s across detection, persistence, collectors, DSL, AST, planner, API routes, and WebSocket live feeds.
 - **Go Agent Test Suite & Build**:
   - `go test -v -count=1 ./...` -> **31/31 tests PASSED** across `internal/collectors`, `internal/runtime`, and `tests`.
   - `go build ./...` -> **Binary build SUCCESSFUL** (exit code 0).
-- **Python Backend Test Suite**:
-  - `python -m pytest -v` -> **58/58 tests PASSED** in 1.55s across detection, persistence, collectors, DSL, AST, and API routes.
 
 ---
 
 ## 3. Current Working Functionality
 
-The Go forensic agent can now collect read-only telemetry across six core targets:
-1. **`processes`**: Read-only process enumeration (`PID`, `PPID`, `Name`, `Path`, `CommandLine`, `User`, `SignatureStatus`).
-2. **`connections`**: Read-only socket/network state (`Protocol`, `LocalAddress`, `LocalPort`, `RemoteAddress`, `RemotePort`, `State`, `PID`).
-3. **`autoruns`**: Read-only persistence enumeration (`Location`, `Name`, `Command`, `User`, `Source`, `Enabled`).
-4. **`scheduled_tasks`**: Read-only task and cron inspection (`Name`, `Path`, `Author`, `Action`, `Arguments`, `Trigger`, `Enabled`, `User`).
-5. **`users`**: Read-only local user account enumeration (`Username`, `SID`, `UID`, `GID`, `HomeDir`, `Shell`, `Enabled`, `AccountType`, `Description`). No credential extraction or password hashes accessed.
-6. **`sessions`**: Read-only active session inspection (`Username`, `SessionID`, `SessionName`, `Terminal`, `State`, `LogonType`, `ClientName`, `Source`, `LoginTime`). No credential access.
+The platform supports the complete end-to-end defensive forensic lifecycle:
 
-Execution plans compiled from JOCKY DSL trigger only the requested collectors, validate plans before execution, and transmit normalized artifacts to FastAPI via HTTP transport.
+```text
+Analyst
+   ↓ (JOCKY DSL Script)
+React Frontend Dashboard
+   ↓ (POST /api/v1/jobs with script_body)
+FastAPI Management Server
+   ↓ (JockyLexer → JockyParser → JockyPlanner)
+Structured Versioned Execution Plan
+   ↓ (Job Queue / Polling)
+Go Endpoint Agent Runtime
+   ↓ (Concurrent Read-Only Collectors)
+Telemetry Collectors:
+   • processes (read-only PID, cmdline, signatures)
+   • connections (read-only sockets, ports, states)
+   • autoruns (read-only Run/RunOnce, Startup, XDG)
+   • scheduled_tasks (read-only schtasks, cron)
+   • users (read-only local accounts, SIDs, shells)
+   • sessions (read-only active sessions, terminals)
+   ↓ (POST /api/v1/artifacts)
+FastAPI Telemetry Ingestion
+   ↓
+Automated Adversary Detection & Correlation Engine
+   ↓
+Threat Detections Persistence & Live WebSocket Broadcast
+   ↓ (ws://localhost:8000/ws/jobs/{job_id})
+React Live Triage Console (Artifact Stream & Alert Inspection)
+```
+
+1. **Analyst Dashboard**: Comprehensive operational overview with fleet coverage metrics, active job status, artifact count, correlated threat detections, and endpoint collector health.
+2. **Fleet Agents**: Real-time table of registered agents with status indicators (`online`, `offline`), platform filtering, certificate fingerprints, and 1-click investigation dispatch.
+3. **JOCKY Investigation Editor**: Interactive DSL authoring environment with forensic templates (Persistence Triage, Process/Network Hunt, Identity Audit, Full Sweep), live server-side DSL syntax validation (`/api/v1/scripts/validate`), AST statements inspection, target agent multi-select, and plan dispatch.
+4. **Jobs & Live Stream**: Dispatch queue and live monitoring interface subscribing to `/ws/jobs/{job_id}` with keep-alive pinging, automatic status transitions, and real-time artifact and threat notification cards.
+5. **Artifact Results**: Multi-collector forensic viewer with type badges, summary representations for all 6 active collectors, granular search across telemetry fields, and detailed structured/raw inspection modals.
+6. **Threat Detections**: Correlated alerts viewer with severity pills, deterministic rule explanations, and full supporting evidence chains linking each detection back to the originating telemetry artifacts.
 
 ---
 
-## 4. Phase 6 — Persistence & Identity Collectors
+## 4. Phase 7 — Frontend Architecture & Real-Time Triage
 
-### 4.1 Autorun Collector (`AutorunCollector`)
-- **Target**: `autoruns`
-- **Artifact Type**: `autorun`
-- **Windows Implementation (`autoruns_windows.go`)**:
-  - Reads registry Run and RunOnce keys via read-only queries (`HKLM\...\Run`, `HKLM\...\RunOnce`, `HKCU\...\Run`, `HKCU\...\RunOnce`, Wow6432Node).
-  - Inspects user and system startup directories (`%ProgramData%\Microsoft\Windows\Start Menu\Programs\Startup` and `%APPDATA%\...`).
-- **Linux Implementation (`autoruns_linux.go`)**:
-  - Enumerates `.desktop` files in `/etc/xdg/autostart/` and `~/.config/autostart/`.
-  - Inspects system startup scripts (`/etc/rc.local`).
-- **Safety**: Purely read-only; does not create, modify, or execute persistence entries.
+### 4.1 Frontend Architecture (`frontend/src/`)
+```text
+frontend/src/
+  ├── api/
+  │   ├── client.ts         # Centralized HTTP client, error parsing, and base URLs
+  │   ├── agents.ts         # Agent fleet endpoints (list, get)
+  │   ├── jobs.ts           # Job dispatch and retrieval endpoints
+  │   ├── scripts.ts        # Script templates and live DSL validation
+  │   ├── artifacts.ts      # Forensic artifact queries and inspection
+  │   ├── detections.ts     # Threat detection queries and evidence chains
+  │   ├── health.ts         # Backend service health check
+  │   └── index.ts          # Consolidated exports
+  ├── components/
+  │   ├── common/
+  │   │   ├── Badge.tsx     # Status and severity pills
+  │   │   ├── Button.tsx    # Styled interactive buttons
+  │   │   ├── Card.tsx      # Glassmorphic container with HTMLAttributes
+  │   │   ├── EmptyState.tsx# Contextual empty state card
+  │   │   ├── ErrorBanner.tsx # Sanitized service error banner
+  │   │   └── LoadingSpinner.tsx # Animated forensic telemetry spinner
+  │   └── layout/
+  │       ├── AppLayout.tsx # Main grid layout
+  │       ├── Navbar.tsx    # Brand header with live backend connection monitor
+  │       └── Sidebar.tsx   # Six core forensic operations tabs
+  ├── features/
+  │   ├── dashboard/
+  │   │   └── DashboardOverview.tsx # Metrics, quick actions, recent events
+  │   ├── fleet/
+  │   │   └── FleetTable.tsx        # Agent fleet management & detail drawer
+  │   ├── editor/
+  │   │   └── ScriptEditor.tsx      # JOCKY DSL editor, validator, and dispatcher
+  │   ├── deployment/
+  │   │   └── DeploymentList.tsx    # Job monitoring & WebSocket event stream
+  │   ├── results/
+  │   │   └── ArtifactViewer.tsx    # Artifact table, type filters, and inspector
+  │   └── threats/
+  │       └── ThreatAlertList.tsx   # Threat detections & evidence chain triage
+  ├── hooks/
+  │   └── useJobWebSocket.ts        # Resilient WebSocket connection hook
+  ├── types/
+  │   └── index.ts                  # TypeScript types for all models and WS events
+  ├── App.tsx                       # Root application with cross-tab deep linking
+  └── main.tsx                      # Vite React entry point
+```
 
-### 4.2 Scheduled Task Collector (`ScheduledTaskCollector`)
-- **Target**: `scheduled_tasks`
-- **Artifact Type**: `scheduled_task`
-- **Windows Implementation (`scheduled_tasks_windows.go`)**:
-  - Queries scheduled tasks via `schtasks /query /fo CSV /v`.
-  - Captures task name, path, author, action command, arguments, trigger schedule, and enabled state.
-- **Linux Implementation (`scheduled_tasks_linux.go`)**:
-  - Reads `/etc/crontab`, system cron directories (`/etc/cron.d/`), and user crontabs (`/var/spool/cron/crontabs/`).
-  - Normalizes cron schedule intervals (`m h dom mon dow`) and target execution commands.
-- **Platform Differences**:
-  - Windows scheduled tasks are XML/COM-defined objects supporting calendar, system event, logon, and boot triggers with principal user contexts.
-  - Linux cron entries are time-interval expression strings executing shell commands under configured user IDs.
+### 4.2 WebSocket Live Updates
+- Endpoint: `/ws/jobs/{job_id}`
+- Client Hook: `useJobWebSocket(jobId)` handles:
+  - Connection lifecycle (`idle` → `connecting` → `connected` → `disconnected`)
+  - Periodic keep-alive (`ping` / `pong` every 25s)
+  - Message deserialization and event dispatching
+  - Cleanup on unmount or job switch to prevent memory leaks and duplicate connections
+- Stream Events:
+  - `connected`: Initial subscription confirmation
+  - `artifact_collected`: Real-time artifact telemetry with payload and agent ID
+  - `threat_detected`: Automated detection event with triggering rule ID and severity
+  - `job_status`: State transition notifications (`queued` → `running` → `completed`)
 
-### 4.3 User Collector (`UserCollector`)
-- **Target**: `users`
-- **Artifact Type**: `user`
-- **Windows Implementation (`users_windows.go`)**:
-  - Enumerates local user accounts via read-only `net user` queries.
-  - Identifies built-in administrator, guest, and local user accounts.
-- **Linux Implementation (`users_linux.go`)**:
-  - Reads `/etc/passwd`.
-  - Extracts username, UID, GID, home directory, shell, and determines enabled status based on shell interactiveness (`/usr/sbin/nologin` or `/bin/false` -> disabled).
-- **Safety**: Never accesses credential stores, SAM database, or shadow files. Never attempts authentication.
-
-### 4.4 Session Collector (`SessionCollector`)
-- **Target**: `sessions`
-- **Artifact Type**: `session`
-- **Windows Implementation (`sessions_windows.go`)**:
-  - Queries active user sessions via `query session` / `qwinsta`.
-  - Extracts session ID, session name, username, state (`Active`, `Disc`), and logon type (`Console`, `RDP`, `Service`).
-- **Linux Implementation (`sessions_linux.go`)**:
-  - Queries login sessions via standard `who` interface.
-  - Extracts username, terminal device (`tty1`, `pts/0`), source IP/host, and login timestamp.
-
-### 4.5 Registry Integration
-- Real collectors registered for: `processes`, `connections`, `autoruns`, `scheduled_tasks`, `users`, `sessions`.
-- Placeholder collectors retained for: `files`, `drivers`, `services`, `event_logs`.
-- Verified thread-safe registry in `agent/internal/collectors/registry.go`.
+### 4.3 JOCKY DSL Validation & Submission
+- Authoritative Backend Compiler: Frontend does not duplicate the DSL parser; it sends code to `/api/v1/scripts/validate` which executes `JockyLexer` and `JockyParser`.
+- Compile feedback provides statement count, plan version, and target collectors before execution.
+- Submissions create real jobs via `POST /api/v1/jobs` which are dispatched to the selected agents.
 
 ---
 
 ## 5. Current Contracts
 
-### Artifact Schemas
-
-#### Autorun Artifact
-```json
-{
-  "type": "autorun",
-  "collected_at": "2026-09-30T10:00:00Z",
-  "data": {
-    "name": "SecurityHealth",
-    "location": "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-    "command": "C:\\Windows\\System32\\SecurityHealthSystray.exe",
-    "user": "SYSTEM",
-    "source": "registry",
-    "enabled": true
-  }
-}
-```
-
-#### Scheduled Task Artifact
-```json
-{
-  "type": "scheduled_task",
-  "collected_at": "2026-09-30T10:00:00Z",
-  "data": {
-    "name": "\\Microsoft\\Windows\\UpdateOrchestrator\\Schedule Scan",
-    "path": "\\Microsoft\\Windows\\UpdateOrchestrator\\Schedule Scan",
-    "author": "Microsoft Corporation",
-    "action": "C:\\Windows\\system32\\usoclient.exe StartScan",
-    "arguments": "StartScan",
-    "trigger": "Daily",
-    "enabled": true,
-    "user": "NT AUTHORITY\\SYSTEM"
-  }
-}
-```
-
-#### User Artifact
-```json
-{
-  "type": "user",
-  "collected_at": "2026-09-30T10:00:00Z",
-  "data": {
-    "username": "sysadmin",
-    "sid": "S-1-5-21-...",
-    "uid": 1001,
-    "gid": 1001,
-    "home_dir": "/home/sysadmin",
-    "shell": "/bin/bash",
-    "enabled": true,
-    "account_type": "local",
-    "description": "System Administrator"
-  }
-}
-```
-
-#### Session Artifact
-```json
-{
-  "type": "session",
-  "collected_at": "2026-09-30T10:00:00Z",
-  "data": {
-    "username": "Alice",
-    "session_id": "1",
-    "session_name": "console",
-    "terminal": "console",
-    "state": "Active",
-    "logon_type": "Console",
-    "client_name": "local",
-    "source": "local",
-    "login_time": "2026-09-30 08:30"
-  }
-}
-```
-
-### Detection Rules Added
-- `AUTORUN-SUSP-001`: Detects autorun persistence entries configured to execute binaries from temporary or volatile user directories (`\temp\`, `/tmp/`).
-- `USER-SUSP-001`: Detects dormant, guest, or suspicious backdoor accounts active in an enabled state.
+### API Endpoints
+- `GET /health`: Returns management server health and version.
+- `GET /api/v1/agents`: List registered fleet agents with status filter.
+- `GET /api/v1/agents/{agent_id}`: Retrieve agent details and certificate fingerprint.
+- `POST /api/v1/agents/register`: Agent enrollment endpoint.
+- `GET /api/v1/scripts`: List saved JOCKY investigation templates.
+- `POST /api/v1/scripts`: Save new forensic script.
+- `POST /api/v1/scripts/validate`: Validate DSL script syntax and return estimated collectors.
+- `GET /api/v1/jobs`: List forensic job history.
+- `GET /api/v1/jobs/{job_id}`: Retrieve job execution state, plan metadata, and timestamps.
+- `POST /api/v1/jobs`: Dispatch compiled execution plan to target agents.
+- `GET /api/v1/artifacts`: Query collected artifacts by `type`, `job_id`, `agent_id`, `limit`, `offset`.
+- `GET /api/v1/artifacts/{artifact_id}`: Retrieve single artifact.
+- `POST /api/v1/artifacts`: Ingest artifacts from agent, trigger detection, and broadcast over WebSocket.
+- `GET /api/v1/detections`: Retrieve correlated detections by `severity`, `rule_id`, `status`, `job_id`, `agent_id`.
+- `GET /api/v1/detections/{detection_id}`: Retrieve detection and supporting evidence chain.
+- `WS /ws/jobs/{job_id}`: Real-time telemetry and alert event stream.
 
 ---
 
 ## 6. Current Limitations
 
 1. **Placeholder Collectors**: The remaining four collectors (`files`, `drivers`, `services`, `event_logs`) remain safe placeholders.
-2. **YARA & Sigma Engines**: Binary scanning and Sigma rule engines are not yet integrated into the runtime.
-3. **Frontend Dashboard**: The React web interface has not yet been hooked up to live agent endpoints and WebSocket streams.
+2. **YARA & Sigma Engines**: In-depth binary scanning and Sigma rule engines are not yet integrated into the runtime.
+3. **Agent Polling Loop**: Agents currently poll for jobs periodically rather than receiving push notifications via long-polling or gRPC.
 
 ---
 
 ## 7. Exactly ONE Next Recommended Step
 
-**Phase 7: Frontend React Dashboard & Live Forensic Triage Interface**
-- Connect React dashboard to FastAPI management endpoints (`/api/v1/agents`, `/api/v1/jobs`, `/api/v1/artifacts`, `/api/v1/detections`).
-- Build real-time forensic triage table subscribing to WebSocket `/ws/jobs/{job_id}`.
-- Provide interactive JOCKY DSL script dispatch, live artifact stream, and evidence drill-down inspector.
+**Phase 8: File System Collector & Hash Inspection**
+- Implement read-only `files` collector on Windows and Linux (`FileCollector`).
+- Safely inspect file metadata (path, size, timestamps, permissions, owner).
+- Compute cryptographic file hashes (SHA-256, MD5) on demand in read-only mode.
+- Prevent traversal into sensitive virtual filesystems (e.g. `/proc`, `/sys`).
+- Integrate file hash artifacts with detection rules and the frontend artifact viewer.
 
 ---
 
@@ -221,3 +206,7 @@ Execution plans compiled from JOCKY DSL trigger only the requested collectors, v
 
 ### Phase 5 — Detection & Correlation Engine
 - Implemented explainable detection engine, persistence, deduplication, JOCKY `flag` dynamic condition evaluation, and `GET /api/v1/detections` API.
+
+### Phase 6 — Persistence & Identity Collectors
+- Implemented real read-only collectors for `autoruns`, `scheduled_tasks`, `users`, and `sessions` on Windows and Linux.
+- Added rules `AUTORUN-SUSP-001` and `USER-SUSP-001`.

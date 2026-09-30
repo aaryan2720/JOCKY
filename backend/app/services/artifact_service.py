@@ -83,8 +83,9 @@ class ArtifactService:
             persisted.append(record)
 
         # 2. Trigger Detection Engine (guarded against failures)
+        new_detections = []
         try:
-            await self.detection_service.process_artifacts(
+            new_detections = await self.detection_service.process_artifacts(
                 artifacts=persisted,
                 job_id=job_id,
                 agent_id=agent_id,
@@ -94,7 +95,49 @@ class ArtifactService:
             # Preservation guarantee: detection failure must NOT corrupt or roll back ingested artifacts
             logger.error(f"Detection engine error during artifact ingestion: {e}", exc_info=True)
 
+        # 3. Broadcast Live Events to Connected WebSocket Clients
+        try:
+            from app.api.websocket.jobs import manager as ws_manager
+            from app.services.job_service import JobService
+
+            for record in persisted:
+                target_job = record.job_id if record.job_id != "unknown-job" else job_id
+                if target_job and target_job != "unknown-job":
+                    await ws_manager.broadcast_job_event(target_job, {
+                        "event": "artifact_collected",
+                        "job_id": target_job,
+                        "agent_id": record.agent_id,
+                        "timestamp": record.collected_at.isoformat(),
+                        "payload": {
+                            "id": record.id,
+                            "type": record.type,
+                            "data": record.data,
+                        },
+                    })
+
+            if new_detections:
+                for det in new_detections:
+                    target_job = det.job_id if det.job_id != "unknown-job" else job_id
+                    if target_job and target_job != "unknown-job":
+                        await ws_manager.broadcast_job_event(target_job, {
+                            "event": "threat_detected",
+                            "job_id": target_job,
+                            "detection": det.model_dump(mode="json"),
+                        })
+
+            if job_id and job_id != "unknown-job":
+                await JobService.get_instance().update_job_status(job_id, "completed")
+                await ws_manager.broadcast_job_event(job_id, {
+                    "event": "job_status",
+                    "job_id": job_id,
+                    "status": "completed",
+                    "timestamp": now.isoformat(),
+                })
+        except Exception as ws_err:
+            logger.debug(f"Live job event broadcast notice: {ws_err}")
+
         return persisted
+
 
     async def list_artifacts(
         self,
