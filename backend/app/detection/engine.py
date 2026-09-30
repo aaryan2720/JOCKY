@@ -5,6 +5,8 @@ from app.detection.rules.base import DetectionRule
 from app.detection.rules.unsigned_process import UnsignedProcessRule
 from app.detection.rules.process_network import UnsignedProcessNetworkRule
 from app.detection.rules.parent_child import SuspiciousParentChildRule
+from app.detection.rules.suspicious_autorun import SuspiciousAutorunRule
+from app.detection.rules.suspicious_user import SuspiciousUserRule
 from app.detection.rules.flag_condition import FlagConditionRule
 from app.schemas.detection import DetectionCreate
 
@@ -42,6 +44,8 @@ class DetectionEngine:
                 UnsignedProcessRule(),
                 UnsignedProcessNetworkRule(correlation_window_seconds=self.correlation_window_seconds),
                 SuspiciousParentChildRule(),
+                SuspiciousAutorunRule(),
+                SuspiciousUserRule(),
             ]
 
     def register_rule(self, rule: DetectionRule) -> None:

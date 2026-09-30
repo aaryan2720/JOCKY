@@ -184,7 +184,7 @@ Query forensic artifacts collected from agents.
 **Query Parameters**:
 - `job_id`: filter by originating job (optional)
 - `agent_id`: filter by agent identifier (optional)
-- `type`: filter by artifact type (`process`, `network`, `persistence`, `eventlog`) (optional)
+- `type`: filter by artifact type (`process`, `network`, `network_connection`, `autorun`, `scheduled_task`, `user`, `session`, `persistence`, `eventlog`) (optional)
 - `limit`: integer (default: 100)
 - `offset`: integer (default: 0)
 
@@ -199,6 +199,8 @@ Retrieve a specific artifact by its identifier.
 - `PROC-UNSIGNED-001`: Unsigned process executable identified on endpoint.
 - `PROC-NET-001`: Unsigned process with active network connection correlated across PID and host within time window.
 - `PROC-PARENT-001`: Suspicious process lineage / parent-child anomaly based on configured rule pairings.
+- `AUTORUN-SUSP-001`: Suspicious persistence entry configured to execute from temporary/volatile directory.
+- `USER-SUSP-001`: Dormant, guest, or abnormal account observed active in an enabled state.
 - `FLAG-DYNAMIC-001`: Dynamic condition match from JOCKY DSL `flag` statement in compiled execution plan.
 
 ### `GET /api/v1/detections`

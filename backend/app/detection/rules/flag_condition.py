@@ -29,6 +29,10 @@ SUPPORTED_FIELDS = {
     "username", "user",
     "state", "status",
     "type",
+    "location", "command", "source",
+    "author", "action", "arguments", "trigger",
+    "enabled", "shell", "home_dir", "account_type",
+    "terminal", "logon_type", "client_name",
 }
 
 
