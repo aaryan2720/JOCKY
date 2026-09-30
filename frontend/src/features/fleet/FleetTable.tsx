@@ -9,6 +9,8 @@ import {
   Layers,
   AlertTriangle,
   Play,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Badge } from '../../components/common/Badge'
@@ -31,6 +33,7 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [copiedFingerprint, setCopiedFingerprint] = useState(false)
 
   const loadAgents = async () => {
     setIsLoading(true)
@@ -66,12 +69,18 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
 
   const onlineCount = agents.filter((a) => a.status === 'online').length
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedFingerprint(true)
+    setTimeout(() => setCopiedFingerprint(false), 2000)
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Fleet Agents</h1>
+          <h1 className="text-2xl font-bold text-slate-100 tracking-tight font-mono">Fleet Agents</h1>
           <p className="text-sm text-slate-400 mt-1">
             Real-time status of enrolled cross-platform forensic collection agents.
           </p>
@@ -91,10 +100,10 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-400">Total Enrolled</p>
-              <p className="text-2xl font-bold text-slate-100 mt-1">{agents.length}</p>
+              <p className="text-xs font-medium text-slate-400 font-mono uppercase tracking-wider">Total Enrolled</p>
+              <p className="text-2xl font-bold text-slate-100 mt-1 font-mono">{agents.length}</p>
             </div>
-            <div className="w-10 h-10 rounded-lg bg-cyan-950/40 border border-cyan-800/40 flex items-center justify-center text-cyan-400">
+            <div className="w-10 h-10 rounded-lg bg-cyan-950/60 border border-cyan-800/60 flex items-center justify-center text-cyan-400">
               <Server className="w-5 h-5" />
             </div>
           </div>
@@ -103,10 +112,10 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-400">Active Online Agents</p>
-              <p className="text-2xl font-bold text-emerald-400 mt-1">{onlineCount}</p>
+              <p className="text-xs font-medium text-slate-400 font-mono uppercase tracking-wider">Active Online Agents</p>
+              <p className="text-2xl font-bold text-emerald-400 mt-1 font-mono">{onlineCount}</p>
             </div>
-            <div className="w-10 h-10 rounded-lg bg-emerald-950/40 border border-emerald-800/40 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-lg bg-emerald-950/60 border border-emerald-800/60 flex items-center justify-center text-emerald-400">
               <CheckCircle2 className="w-5 h-5" />
             </div>
           </div>
@@ -115,10 +124,10 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-400">Offline / Disconnected</p>
-              <p className="text-2xl font-bold text-slate-400 mt-1">{agents.length - onlineCount}</p>
+              <p className="text-xs font-medium text-slate-400 font-mono uppercase tracking-wider">Offline / Disconnected</p>
+              <p className="text-2xl font-bold text-slate-400 mt-1 font-mono">{agents.length - onlineCount}</p>
             </div>
-            <div className="w-10 h-10 rounded-lg bg-slate-800/40 border border-slate-700/40 flex items-center justify-center text-slate-400">
+            <div className="w-10 h-10 rounded-lg bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-400">
               <XCircle className="w-5 h-5" />
             </div>
           </div>
@@ -134,7 +143,7 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
             placeholder="Search by ID, hostname, IP, tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-900/80 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50"
+            className="w-full pl-9 pr-4 py-2 bg-slate-900/80 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 font-mono"
           />
         </div>
 
@@ -144,9 +153,9 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
-              className={`px-2.5 py-1 text-xs rounded-md font-mono capitalize transition-colors ${
+              className={`px-3 py-1 text-xs rounded-md font-mono capitalize transition-colors cursor-pointer ${
                 statusFilter === st
-                  ? 'bg-cyan-950 border border-cyan-800 text-cyan-400'
+                  ? 'bg-cyan-950 border border-cyan-800 text-cyan-300 font-bold'
                   : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -168,11 +177,11 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
           onAction={loadAgents}
         />
       ) : (
-        <Card className="p-0 overflow-hidden">
+        <Card className="p-0 overflow-hidden border-slate-800">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-900/50 text-slate-400 text-xs uppercase tracking-wider font-mono">
+                <tr className="border-b border-slate-800 bg-slate-900/70 text-slate-400 text-xs uppercase tracking-wider font-mono">
                   <th className="py-3 px-4">Agent ID</th>
                   <th className="py-3 px-4">Hostname</th>
                   <th className="py-3 px-4">Platform</th>
@@ -190,14 +199,14 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
                     <tr
                       key={agent.id}
                       onClick={() => setSelectedAgent(agent)}
-                      className={`hover:bg-slate-800/30 transition-colors cursor-pointer ${
+                      className={`hover:bg-slate-800/40 transition-colors cursor-pointer ${
                         isSelected ? 'bg-cyan-950/20 border-l-2 border-l-cyan-400' : ''
                       }`}
                     >
                       <td className="py-3.5 px-4 font-semibold text-cyan-400">{agent.id}</td>
-                      <td className="py-3.5 px-4 text-slate-200 font-medium">{agent.hostname}</td>
+                      <td className="py-3.5 px-4 text-slate-100 font-medium">{agent.hostname}</td>
                       <td className="py-3.5 px-4">
-                        <span className="capitalize text-slate-300 px-2 py-0.5 rounded bg-slate-800/70 border border-slate-700/60">
+                        <span className="capitalize text-slate-300 px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[11px]">
                           {agent.os}
                         </span>
                       </td>
@@ -214,7 +223,7 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
                         >
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${
-                              agent.status === 'online' ? 'bg-emerald-400' : 'bg-rose-400'
+                              agent.status === 'online' ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'
                             }`}
                           />
                           {agent.status}
@@ -263,14 +272,14 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
 
       {/* Agent Detail Modal / Inspector Drawer */}
       {selectedAgent && (
-        <Card className="border-cyan-800/50 bg-[#0d1322]/90 shadow-xl space-y-4">
+        <Card className="border-cyan-800/60 bg-[#0d1322]/95 shadow-xl space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-cyan-950/60 border border-cyan-800/60 flex items-center justify-center text-cyan-400">
-                <Server className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-lg bg-cyan-950/70 border border-cyan-800/70 flex items-center justify-center text-cyan-400">
+                <Server className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-100 font-mono">{selectedAgent.hostname}</h3>
+                <h3 className="text-base font-bold text-slate-100 font-mono">{selectedAgent.hostname}</h3>
                 <p className="text-xs text-slate-400 font-mono">{selectedAgent.id}</p>
               </div>
             </div>
@@ -279,30 +288,45 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-            <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[10px] uppercase">Operating System</span>
-              <span className="text-slate-200 capitalize font-medium">{selectedAgent.os}</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+            <div className="p-3 bg-slate-900/70 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[10px] uppercase font-bold">Operating System</span>
+              <span className="text-slate-200 capitalize font-medium mt-0.5 block">{selectedAgent.os}</span>
             </div>
-            <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[10px] uppercase">IP Address</span>
-              <span className="text-slate-200 font-medium">{selectedAgent.ip_address || '127.0.0.1'}</span>
+            <div className="p-3 bg-slate-900/70 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[10px] uppercase font-bold">IP Address</span>
+              <span className="text-slate-200 font-medium mt-0.5 block">{selectedAgent.ip_address || '127.0.0.1'}</span>
             </div>
-            <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[10px] uppercase">Agent Version</span>
-              <span className="text-slate-200 font-medium">{selectedAgent.version || '0.1.0'}</span>
+            <div className="p-3 bg-slate-900/70 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[10px] uppercase font-bold">Agent Version</span>
+              <span className="text-slate-200 font-medium mt-0.5 block">{selectedAgent.version || '0.1.0'}</span>
             </div>
-            <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800">
-              <span className="text-slate-500 block text-[10px] uppercase">Status</span>
-              <Badge variant={selectedAgent.status === 'online' ? 'success' : 'danger'}>
-                {selectedAgent.status}
-              </Badge>
+            <div className="p-3 bg-slate-900/70 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[10px] uppercase font-bold">Status</span>
+              <div className="mt-0.5">
+                <Badge variant={selectedAgent.status === 'online' ? 'success' : 'danger'}>
+                  {selectedAgent.status}
+                </Badge>
+              </div>
             </div>
           </div>
 
-          <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 text-xs font-mono">
-            <span className="text-slate-500 block text-[10px] uppercase mb-1">Certificate Fingerprint</span>
-            <span className="text-cyan-400 break-all">{selectedAgent.cert_fingerprint || 'N/A'}</span>
+          <div className="p-3 bg-slate-900/70 rounded-lg border border-slate-800 text-xs font-mono flex items-center justify-between gap-3">
+            <div className="overflow-hidden">
+              <span className="text-slate-500 block text-[10px] uppercase font-bold mb-0.5">Certificate Fingerprint</span>
+              <span className="text-cyan-400 break-all font-mono text-[11px]">{selectedAgent.cert_fingerprint || 'N/A'}</span>
+            </div>
+            {selectedAgent.cert_fingerprint && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copyToClipboard(selectedAgent.cert_fingerprint || '')}
+                className="shrink-0 text-slate-400 hover:text-white"
+              >
+                {copiedFingerprint ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedFingerprint ? 'Copied' : 'Copy'}
+              </Button>
+            )}
           </div>
 
           {/* Quick Actions */}
@@ -341,3 +365,4 @@ export const FleetTable: React.FC<FleetTableProps> = ({ onNavigate }) => {
     </div>
   )
 }
+

@@ -14,14 +14,18 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onSelectTab,
 }) => {
   return (
-    <div className="min-h-screen bg-[#0a0d14] text-slate-100 flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 antialiased">
       <Navbar />
       <div className="flex-1 flex overflow-hidden">
         <Sidebar activeTab={activeTab} onSelectTab={onSelectTab} />
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 max-w-7xl">
+        <main
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto p-6 lg:p-8 max-w-7xl w-full mx-auto focus:outline-none"
+        >
           {children}
         </main>
       </div>
     </div>
   )
 }
+

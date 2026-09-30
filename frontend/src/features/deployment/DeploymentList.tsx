@@ -7,6 +7,10 @@ import {
   Layers,
   AlertTriangle,
   Terminal,
+  Play,
+  CheckCircle2,
+  XCircle,
+  Clock3,
 } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Badge } from '../../components/common/Badge'
@@ -69,12 +73,47 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
     },
   })
 
+  const getJobStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return (
+          <Badge variant="success">
+            <CheckCircle2 className="w-3 h-3" />
+            <span>completed</span>
+          </Badge>
+        )
+      case 'running':
+        return (
+          <Badge variant="info">
+            <Activity className="w-3 h-3 animate-pulse" />
+            <span>running</span>
+          </Badge>
+        )
+      case 'failed':
+        return (
+          <Badge variant="danger">
+            <XCircle className="w-3 h-3" />
+            <span>failed</span>
+          </Badge>
+        )
+      case 'queued':
+        return (
+          <Badge variant="warning">
+            <Clock3 className="w-3 h-3" />
+            <span>queued</span>
+          </Badge>
+        )
+      default:
+        return <Badge variant="default">{status}</Badge>
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Forensic Jobs & Live Stream</h1>
+          <h1 className="text-2xl font-bold text-slate-100 tracking-tight font-mono">Forensic Jobs & Live Stream</h1>
           <p className="text-sm text-slate-400 mt-1">
             Dispatch queue, execution status, and live WebSocket telemetry feeds from endpoint agents.
           </p>
@@ -86,6 +125,7 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
           </Button>
           {onNavigate && (
             <Button variant="primary" size="sm" onClick={() => onNavigate('editor')}>
+              <Play className="w-3.5 h-3.5" />
               New Dispatch
             </Button>
           )}
@@ -99,15 +139,15 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
         {/* Jobs List (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-300 font-mono">Job History</h2>
+            <h2 className="text-sm font-semibold text-slate-200 font-mono">Job History</h2>
             <div className="flex gap-1">
-              {['all', 'queued', 'running', 'completed'].map((st) => (
+              {['all', 'queued', 'running', 'completed', 'failed'].map((st) => (
                 <button
                   key={st}
                   onClick={() => setStatusFilter(st)}
-                  className={`px-2 py-0.5 text-[11px] rounded font-mono capitalize transition-colors ${
+                  className={`px-2.5 py-1 text-[11px] rounded-md font-mono capitalize transition-colors cursor-pointer ${
                     statusFilter === st
-                      ? 'bg-cyan-950 border border-cyan-800 text-cyan-400'
+                      ? 'bg-cyan-950 border border-cyan-800 text-cyan-300 font-bold'
                       : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -123,12 +163,12 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
             <EmptyState
               icon={<Activity className="w-6 h-6 text-slate-500" />}
               title="No jobs recorded"
-              description="No investigations have been dispatched yet. Write and dispatch a JOCKY script in the editor."
+              description="No investigations have been dispatched yet. Author and dispatch a JOCKY script in the editor."
               actionLabel="Go to Editor"
               onAction={() => onNavigate && onNavigate('editor')}
             />
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 max-h-[calc(100vh-16rem)] overflow-y-auto pr-1">
               {jobs.map((job) => {
                 const isSelected = selectedJobId === job.id
                 return (
@@ -138,49 +178,39 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
                       setSelectedJobId(job.id)
                       clearEvents()
                     }}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                    tabIndex={0}
+                    role="button"
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer focus-ring select-none ${
                       isSelected
-                        ? 'bg-cyan-950/20 border-cyan-800/80 shadow-md shadow-cyan-950/30'
+                        ? 'bg-cyan-950/25 border-cyan-800/80 shadow-md shadow-cyan-950/30'
                         : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-mono text-xs font-bold text-cyan-400">{job.id}</span>
-                      <Badge
-                        variant={
-                          job.status === 'completed'
-                            ? 'success'
-                            : job.status === 'running'
-                            ? 'info'
-                            : job.status === 'failed'
-                            ? 'danger'
-                            : 'default'
-                        }
-                      >
-                        {job.status}
-                      </Badge>
+                      {getJobStatusBadge(job.status)}
                     </div>
 
                     <div className="text-xs text-slate-400 space-y-1 font-mono">
                       <p>
-                        Target: <span className="text-slate-200">{job.target_agents.join(', ') || 'N/A'}</span>
+                        Target: <span className="text-slate-200 font-medium">{job.target_agents.join(', ') || 'N/A'}</span>
                       </p>
                       {job.plan?.collectors && (
-                        <p className="text-[11px] text-slate-500">
-                          Collectors: {job.plan.collectors.map((c) => c.target).join(', ')}
+                        <p className="text-[11px] text-slate-400">
+                          Collectors: <span className="text-emerald-400">{job.plan.collectors.map((c) => c.target).join(', ')}</span>
                         </p>
                       )}
                     </div>
 
-                    <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+                    <div className="mt-2.5 pt-2 border-t border-slate-800/70 flex items-center justify-between text-[11px] text-slate-500 font-mono">
                       <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
+                        <Clock className="w-3 h-3 text-slate-500" />
                         <span>{new Date(job.created_at).toLocaleTimeString()}</span>
                       </div>
                       {isSelected && (
                         <span className="text-cyan-400 font-mono text-[10px] flex items-center gap-1">
                           <Radio className="w-2.5 h-2.5 animate-pulse" />
-                          Streaming
+                          Subscribed
                         </span>
                       )}
                     </div>
@@ -201,19 +231,7 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-base font-bold text-slate-100 font-mono">{selectedJob.id}</h3>
-                      <Badge
-                        variant={
-                          selectedJob.status === 'completed'
-                            ? 'success'
-                            : selectedJob.status === 'running'
-                            ? 'info'
-                            : selectedJob.status === 'failed'
-                            ? 'danger'
-                            : 'default'
-                        }
-                      >
-                        {selectedJob.status}
-                      </Badge>
+                      {getJobStatusBadge(selectedJob.status)}
                     </div>
                     <p className="text-xs text-slate-400 font-mono mt-0.5">
                       Created: {new Date(selectedJob.created_at).toLocaleString()}
@@ -240,23 +258,23 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
 
                 {/* Plan Metadata */}
                 <div className="grid grid-cols-2 gap-3 text-xs font-mono">
-                  <div className="p-2.5 bg-slate-900/60 rounded-lg border border-slate-800">
-                    <span className="text-slate-500 block text-[10px] uppercase">Target Agent(s)</span>
+                  <div className="p-2.5 bg-slate-900/70 rounded-lg border border-slate-800">
+                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Target Agent(s)</span>
                     <span className="text-slate-200 font-medium">{selectedJob.target_agents.join(', ')}</span>
                   </div>
-                  <div className="p-2.5 bg-slate-900/60 rounded-lg border border-slate-800">
-                    <span className="text-slate-500 block text-[10px] uppercase">Plan Collectors</span>
-                    <span className="text-cyan-400 font-medium">
+                  <div className="p-2.5 bg-slate-900/70 rounded-lg border border-slate-800">
+                    <span className="text-slate-500 block text-[10px] uppercase font-bold">Plan Collectors</span>
+                    <span className="text-cyan-300 font-medium">
                       {selectedJob.plan?.collectors
                         ? selectedJob.plan.collectors.map((c) => c.target).join(', ')
-                        : 'Default Fleet Sweep'}
+                        : 'Full Investigation Sweep'}
                     </span>
                   </div>
                 </div>
 
                 {/* Quick Triage Buttons */}
                 {onNavigate && (
-                  <div className="flex items-center gap-3 pt-1 border-t border-slate-800">
+                  <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-slate-800">
                     <Button
                       variant="outline"
                       size="sm"
@@ -278,13 +296,13 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
               </Card>
 
               {/* Live WebSocket Event Stream Terminal */}
-              <Card className="p-0 overflow-hidden border-slate-800 bg-[#090d16]">
-                <div className="px-4 py-2.5 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between font-mono text-xs">
+              <Card className="p-0 overflow-hidden border-slate-800 bg-[#080c15]">
+                <div className="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between font-mono text-xs">
                   <div className="flex items-center gap-2 text-cyan-400">
                     <Terminal className="w-4 h-4" />
-                    <span>Live Event Stream (/ws/jobs/{selectedJob.id})</span>
+                    <span className="font-semibold">Live Event Stream (/ws/jobs/{selectedJob.id})</span>
                   </div>
-                  <span className="text-[11px] text-slate-500">{liveEvents.length} events received</span>
+                  <span className="text-[11px] text-slate-400">{liveEvents.length} events received</span>
                 </div>
 
                 <div className="p-4 space-y-2 font-mono text-xs max-h-[380px] overflow-y-auto">
@@ -299,15 +317,15 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
                     liveEvents.map((evt, idx) => (
                       <div
                         key={idx}
-                        className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80 space-y-1"
+                        className="p-3 rounded-lg bg-slate-900/70 border border-slate-800/80 space-y-1.5"
                       >
                         <div className="flex items-center justify-between text-[11px]">
                           <span
                             className={`font-semibold uppercase tracking-wider ${
                               evt.event === 'threat_detected'
-                                ? 'text-rose-400'
+                                ? 'text-rose-400 font-bold'
                                 : evt.event === 'artifact_collected'
-                                ? 'text-emerald-400'
+                                ? 'text-emerald-400 font-bold'
                                 : evt.event === 'connected'
                                 ? 'text-cyan-400'
                                 : 'text-slate-300'
@@ -315,27 +333,27 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
                           >
                             [{evt.event}]
                           </span>
-                          <span className="text-slate-500">
+                          <span className="text-slate-500 font-mono">
                             {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : 'Just now'}
                           </span>
                         </div>
 
-                        {evt.message && <p className="text-slate-300">{evt.message}</p>}
+                        {evt.message && <p className="text-slate-200">{evt.message}</p>}
 
                         {evt.event === 'artifact_collected' && evt.payload && (
-                          <div className="text-[11px] text-slate-400 bg-slate-950 p-2 rounded border border-slate-800/60">
-                            <span className="text-emerald-400 font-semibold">{evt.payload.type}</span> from{' '}
-                            <span className="text-slate-300">{evt.agent_id}</span>
-                            <pre className="text-[10px] text-slate-500 mt-1 overflow-x-auto">
+                          <div className="text-[11px] text-slate-300 bg-slate-950 p-2.5 rounded border border-slate-800">
+                            <span className="text-emerald-400 font-bold">{evt.payload.type}</span> from{' '}
+                            <span className="text-cyan-300">{evt.agent_id}</span>
+                            <pre className="text-[10px] text-slate-400 mt-1.5 overflow-x-auto">
                               {JSON.stringify(evt.payload.data || evt.payload, null, 2)}
                             </pre>
                           </div>
                         )}
 
                         {evt.event === 'threat_detected' && evt.detection && (
-                          <div className="text-[11px] text-rose-300 bg-rose-950/30 p-2 rounded border border-rose-800/50">
-                            <span className="font-bold text-rose-400">{evt.detection.title}</span> ({evt.detection.rule_id})
-                            <p className="text-[10px] text-rose-300/80 mt-0.5">{evt.detection.description}</p>
+                          <div className="text-[11px] text-rose-300 bg-rose-950/40 p-2.5 rounded border border-rose-800/60">
+                            <span className="font-bold text-rose-300">{evt.detection.title}</span> ({evt.detection.rule_id})
+                            <p className="text-[10px] text-rose-200/90 mt-0.5">{evt.detection.description}</p>
                           </div>
                         )}
                       </div>
@@ -356,3 +374,4 @@ export const DeploymentList: React.FC<DeploymentListProps> = ({ initialJobId, on
     </div>
   )
 }
+

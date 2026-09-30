@@ -20,22 +20,22 @@ export const Card: React.FC<CardProps> = ({
   return (
     <div
       className={cn(
-        'bg-[#111726]/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 shadow-xl transition-all duration-200 hover:border-slate-700/80',
+        'bg-[#0d1322]/90 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 shadow-lg transition-all duration-200 hover:border-slate-700/90',
         className
       )}
       {...props}
     >
-
       {(title || action) && (
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800/60">
+        <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-800/80">
           <div>
-            {title && <h3 className="text-base font-semibold text-slate-100">{title}</h3>}
+            {title && <h3 className="text-sm font-semibold tracking-tight text-slate-100 font-mono">{title}</h3>}
             {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
           </div>
-          {action && <div>{action}</div>}
+          {action && <div className="shrink-0">{action}</div>}
         </div>
       )}
       {children}
     </div>
   )
 }
+

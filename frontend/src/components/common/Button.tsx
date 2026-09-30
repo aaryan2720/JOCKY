@@ -15,19 +15,19 @@ export const Button: React.FC<ButtonProps> = ({
 }) => {
   const variantStyles = {
     primary:
-      'bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/20 active:scale-[0.98]',
+      'bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-medium hover:from-cyan-500 hover:to-blue-500 border border-cyan-500/40 shadow-sm shadow-cyan-950/50 active:scale-[0.98]',
     secondary:
-      'bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 active:scale-[0.98]',
+      'bg-slate-800/90 text-slate-200 hover:bg-slate-750 hover:text-white border border-slate-700 active:scale-[0.98]',
     outline:
-      'bg-transparent text-slate-300 border border-slate-700 hover:bg-slate-800/60 hover:text-white',
+      'bg-transparent text-slate-300 border border-slate-700/80 hover:bg-slate-800/60 hover:text-white hover:border-slate-600 active:scale-[0.98]',
     danger:
-      'bg-rose-600 text-white hover:bg-rose-500 shadow-lg shadow-rose-600/20 active:scale-[0.98]',
+      'bg-rose-600/90 text-white hover:bg-rose-500 border border-rose-500/40 shadow-sm shadow-rose-950/40 active:scale-[0.98]',
     ghost:
-      'bg-transparent text-slate-400 hover:text-slate-100 hover:bg-slate-800/40',
+      'bg-transparent text-slate-400 hover:text-slate-100 hover:bg-slate-800/50',
   }
 
   const sizeStyles = {
-    sm: 'px-2.5 py-1 text-xs rounded-md',
+    sm: 'px-2.5 py-1.5 text-xs rounded-md',
     md: 'px-3.5 py-2 text-sm rounded-lg',
     lg: 'px-5 py-2.5 text-base rounded-lg',
   }
@@ -35,7 +35,7 @@ export const Button: React.FC<ButtonProps> = ({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 disabled:opacity-50 disabled:cursor-not-allowed',
+        'inline-flex items-center justify-center gap-2 font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#090d16] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer select-none',
         variantStyles[variant],
         sizeStyles[size],
         className
@@ -46,3 +46,4 @@ export const Button: React.FC<ButtonProps> = ({
     </button>
   )
 }
+

@@ -7,7 +7,13 @@ import {
   ShieldAlert,
   ArrowRight,
   FileCode,
+  Copy,
+  Check,
+  Layers,
+  Server,
+  Activity,
 } from 'lucide-react'
+
 import { Card } from '../../components/common/Card'
 import { Badge } from '../../components/common/Badge'
 import { Button } from '../../components/common/Button'
@@ -38,6 +44,7 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
   const [agentIdFilter, setAgentIdFilter] = useState<string>(initialAgentId || '')
   const [selectedDetection, setSelectedDetection] = useState<Detection | null>(null)
   const [showRawJson, setShowRawJson] = useState(false)
+  const [copiedDetectionId, setCopiedDetectionId] = useState(false)
 
   const loadDetections = async () => {
     setIsLoading(true)
@@ -65,15 +72,47 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
   const getSeverityBadge = (severity: string) => {
     switch (severity.toLowerCase()) {
       case 'critical':
-        return <Badge variant="danger">CRITICAL</Badge>
+        return (
+          <Badge variant="danger" className="bg-rose-950 text-rose-200 border-rose-600 font-bold px-2.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+            CRITICAL
+          </Badge>
+        )
       case 'high':
-        return <Badge variant="danger">HIGH</Badge>
+        return (
+          <Badge variant="danger" className="font-bold">
+            HIGH
+          </Badge>
+        )
       case 'medium':
-        return <Badge variant="warning">MEDIUM</Badge>
+        return (
+          <Badge variant="warning" className="font-bold">
+            MEDIUM
+          </Badge>
+        )
       case 'low':
-        return <Badge variant="info">LOW</Badge>
+        return (
+          <Badge variant="info" className="font-bold">
+            LOW
+          </Badge>
+        )
       default:
         return <Badge variant="default">{severity.toUpperCase()}</Badge>
+    }
+  }
+
+  const getSeverityCardBorder = (severity: string) => {
+    switch (severity.toLowerCase()) {
+      case 'critical':
+        return 'border-l-4 border-l-rose-500 border-slate-800/80 bg-[#120c15]/60 hover:border-rose-700/80'
+      case 'high':
+        return 'border-l-4 border-l-rose-600 border-slate-800/80 bg-[#110e17]/50 hover:border-rose-700/80'
+      case 'medium':
+        return 'border-l-4 border-l-amber-500 border-slate-800/80 bg-[#121015]/40 hover:border-amber-700/80'
+      case 'low':
+        return 'border-l-4 border-l-cyan-500 border-slate-800/80 bg-[#0c121e]/40 hover:border-cyan-700/80'
+      default:
+        return 'border-l-4 border-l-slate-600 border-slate-800/80 bg-slate-900/40 hover:border-slate-700'
     }
   }
 
@@ -87,12 +126,18 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
     'FLAG-DYNAMIC-001',
   ]
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedDetectionId(true)
+    setTimeout(() => setCopiedDetectionId(false), 2000)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Threat Detections & Evidence Triage</h1>
+          <h1 className="text-2xl font-bold text-slate-100 tracking-tight font-mono">Threat Detections & Evidence Triage</h1>
           <p className="text-sm text-slate-400 mt-1">
             Explainable, deterministic detection matches correlated across ingested endpoint telemetry.
           </p>
@@ -110,7 +155,7 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
       {/* Filter Toolbar */}
       <div className="space-y-3">
         {/* Severity Filter */}
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-1.5 items-center">
           <span className="text-xs text-slate-400 font-mono flex items-center gap-1.5 mr-1">
             <Filter className="w-3.5 h-3.5 text-rose-400" />
             Severity:
@@ -119,9 +164,9 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
             <button
               key={sev}
               onClick={() => setSeverityFilter(sev)}
-              className={`px-2.5 py-1 text-xs rounded-md font-mono capitalize transition-colors ${
+              className={`px-2.5 py-1 text-xs rounded-md font-mono capitalize transition-colors cursor-pointer ${
                 severityFilter === sev
-                  ? 'bg-rose-950 border border-rose-800 text-rose-300 font-bold'
+                  ? 'bg-rose-950 border border-rose-700 text-rose-200 font-bold shadow-sm shadow-rose-950/40'
                   : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -137,9 +182,9 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
             <button
               key={r}
               onClick={() => setRuleFilter(r)}
-              className={`px-2 py-0.5 text-[11px] rounded font-mono transition-colors ${
+              className={`px-2.5 py-0.5 text-[11px] rounded-md font-mono transition-colors cursor-pointer ${
                 ruleFilter === r
-                  ? 'bg-cyan-950 border border-cyan-800 text-cyan-400 font-bold'
+                  ? 'bg-cyan-950 border border-cyan-800 text-cyan-300 font-bold'
                   : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -170,47 +215,52 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
           }}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-3.5">
           {detections.map((det) => (
             <Card
               key={det.id}
               onClick={() => setSelectedDetection(det)}
-              className="hover:border-rose-900/60 transition-all cursor-pointer bg-slate-900/40 p-4 border-slate-800/80"
+              tabIndex={0}
+              role="button"
+              className={`transition-all cursor-pointer p-4 focus-ring select-none ${getSeverityCardBorder(det.severity)}`}
             >
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                <div className="space-y-1.5 flex-1">
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                <div className="space-y-2 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     {getSeverityBadge(det.severity)}
-                    <span className="px-2 py-0.5 rounded bg-slate-800 text-cyan-400 font-mono text-xs border border-slate-700">
+                    <span className="px-2 py-0.5 rounded bg-slate-900 text-cyan-300 font-mono text-xs border border-cyan-800/60 font-semibold">
                       {det.rule_id}
                     </span>
                     <span className="font-mono text-xs text-slate-400">{det.id}</span>
                   </div>
 
-                  <h3 className="text-sm font-bold text-slate-100">{det.title}</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
+                  <h3 className="text-base font-bold text-slate-100 font-mono tracking-tight">{det.title}</h3>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-4xl font-sans">
                     {det.description || 'Deterministic rule match observed in ingested forensic telemetry.'}
                   </p>
 
-                  <div className="flex items-center gap-4 text-xs font-mono text-slate-400 pt-1">
-                    <span>
+                  <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-slate-400 pt-1">
+                    <span className="flex items-center gap-1.5">
+                      <Server className="w-3.5 h-3.5 text-slate-500" />
                       Agent: <strong className="text-slate-200">{det.agent_id}</strong>
                     </span>
                     {det.job_id && (
-                      <span>
-                        Job: <strong className="text-cyan-400">{det.job_id}</strong>
+                      <span className="flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5 text-slate-500" />
+                        Job: <strong className="text-cyan-300">{det.job_id}</strong>
                       </span>
                     )}
-                    <span>
-                      Supporting Evidence:{' '}
-                      <strong className="text-emerald-400">{det.evidence.length} artifact(s)</strong>
+                    <span className="flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-slate-500" />
+                      Evidence Artifacts:{' '}
+                      <strong className="text-emerald-400">{det.evidence.length}</strong>
                     </span>
                   </div>
                 </div>
 
-                <div className="text-right flex flex-col items-end justify-between self-stretch shrink-0">
+                <div className="text-right flex flex-col items-start lg:items-end justify-between self-stretch shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-800/80">
                   <span className="text-[11px] text-slate-500 flex items-center gap-1 font-mono">
-                    <Clock className="w-3 h-3" />
+                    <Clock className="w-3 h-3 text-slate-500" />
                     {new Date(det.created_at).toLocaleTimeString()}
                   </span>
 
@@ -221,10 +271,10 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
                       e.stopPropagation()
                       setSelectedDetection(det)
                     }}
-                    className="mt-2 text-rose-300 border-rose-900/40 hover:bg-rose-950/40"
+                    className="mt-2 text-rose-300 border-rose-900/60 hover:bg-rose-950/50"
                   >
                     Triage Evidence
-                    <ArrowRight className="w-3 h-3 ml-1" />
+                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
                   </Button>
                 </div>
               </div>
@@ -235,8 +285,8 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
 
       {/* Detailed Triage Modal */}
       {selectedDetection && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl max-h-[85vh] overflow-y-auto border-rose-800/60 bg-[#0d1322] shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl max-h-[85vh] overflow-y-auto border-rose-800/70 bg-[#0d1322] shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="w-5 h-5 text-rose-400" />
@@ -245,7 +295,7 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
                     <h3 className="text-sm font-bold text-slate-100 font-mono">{selectedDetection.id}</h3>
                     {getSeverityBadge(selectedDetection.severity)}
                   </div>
-                  <p className="text-xs text-cyan-400 font-mono mt-0.5">
+                  <p className="text-xs text-cyan-300 font-mono mt-0.5">
                     Triggered by rule: {selectedDetection.rule_id}
                   </p>
                 </div>
@@ -257,21 +307,21 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
 
             {/* Explanation & Metadata */}
             <div className="space-y-3 font-mono text-xs">
-              <div className="p-3 bg-slate-900/70 rounded-lg border border-slate-800 space-y-1">
-                <h4 className="text-slate-200 font-bold text-xs">{selectedDetection.title}</h4>
-                <p className="text-slate-400 text-[11px] leading-relaxed">
+              <div className="p-3.5 bg-slate-900/80 rounded-lg border border-slate-800 space-y-1.5">
+                <h4 className="text-slate-100 font-bold text-sm">{selectedDetection.title}</h4>
+                <p className="text-slate-300 text-xs leading-relaxed font-sans">
                   {selectedDetection.description}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-2.5 bg-slate-900/60 rounded-lg border border-slate-800">
-                  <span className="text-slate-500 block text-[10px] uppercase">Associated Agent</span>
+                <div className="p-2.5 bg-slate-900/70 rounded-lg border border-slate-800">
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold">Associated Agent</span>
                   <span className="text-slate-200 font-medium">{selectedDetection.agent_id}</span>
                 </div>
-                <div className="p-2.5 bg-slate-900/60 rounded-lg border border-slate-800">
-                  <span className="text-slate-500 block text-[10px] uppercase">Originating Job</span>
-                  <span className="text-cyan-400 font-medium">{selectedDetection.job_id || 'N/A'}</span>
+                <div className="p-2.5 bg-slate-900/70 rounded-lg border border-slate-800">
+                  <span className="text-slate-500 block text-[10px] uppercase font-bold">Originating Job</span>
+                  <span className="text-cyan-300 font-medium">{selectedDetection.job_id || 'N/A'}</span>
                 </div>
               </div>
 
@@ -279,19 +329,28 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    Evidence Chain ({selectedDetection.evidence.length} artifact references)
+                    Supporting Forensic Evidence ({selectedDetection.evidence.length} artifact references)
                   </span>
-                  <button
-                    onClick={() => setShowRawJson(!showRawJson)}
-                    className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                  >
-                    <FileCode className="w-3 h-3" />
-                    <span>{showRawJson ? 'Structured View' : 'Raw JSON'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => copyToClipboard(JSON.stringify(selectedDetection, null, 2))}
+                      className="text-[11px] text-slate-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedDetectionId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedDetectionId ? 'Copied' : 'Copy'}</span>
+                    </button>
+                    <button
+                      onClick={() => setShowRawJson(!showRawJson)}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileCode className="w-3 h-3" />
+                      <span>{showRawJson ? 'Structured View' : 'Raw JSON'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {showRawJson ? (
-                  <pre className="text-[11px] text-slate-300 bg-slate-950 p-3 rounded overflow-x-auto border border-slate-800">
+                  <pre className="text-[11px] text-slate-300 bg-slate-950 p-3 rounded-lg overflow-x-auto border border-slate-800 font-mono leading-relaxed">
                     {JSON.stringify(selectedDetection, null, 2)}
                   </pre>
                 ) : (
@@ -299,11 +358,11 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
                     {selectedDetection.evidence.map((ev, idx) => (
                       <div
                         key={idx}
-                        className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 space-y-2"
+                        className="p-3 rounded-lg bg-slate-900/85 border border-slate-800 space-y-2"
                       >
                         <div className="flex items-center justify-between text-[11px]">
                           <div className="flex items-center gap-2">
-                            <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-semibold">
+                            <span className="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-semibold">
                               {ev.type}
                             </span>
                             <span className="text-slate-400 font-mono">{ev.artifact_id}</span>
@@ -314,7 +373,7 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
                                 setSelectedDetection(null)
                                 onNavigate('results', { jobId: selectedDetection.job_id })
                               }}
-                              className="text-cyan-400 hover:text-cyan-300 text-[10px] underline"
+                              className="text-cyan-400 hover:text-cyan-300 text-[10px] underline cursor-pointer"
                             >
                               Inspect in Artifacts →
                             </button>
@@ -325,8 +384,8 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
                           <div className="text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800/80 text-slate-300 space-y-1">
                             {Object.entries(ev.details).map(([k, v]) => (
                               <div key={k} className="flex justify-between gap-4">
-                                <span className="text-slate-500 capitalize">{k.replace(/_/g, ' ')}:</span>
-                                <span className="text-slate-200 break-all">{String(v)}</span>
+                                <span className="text-slate-500 uppercase text-[10px] font-bold shrink-0">{k.replace(/_/g, ' ')}:</span>
+                                <span className="text-slate-200 break-all font-mono">{String(v)}</span>
                               </div>
                             ))}
                           </div>
@@ -340,7 +399,7 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
 
             {/* Cross Links */}
             {onNavigate && (
-              <div className="pt-2 border-t border-slate-800 flex items-center gap-3">
+              <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center gap-3">
                 {selectedDetection.job_id && (
                   <Button
                     variant="outline"
@@ -371,3 +430,4 @@ export const ThreatAlertList: React.FC<ThreatAlertListProps> = ({
     </div>
   )
 }
+

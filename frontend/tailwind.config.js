@@ -9,17 +9,23 @@ export default {
     extend: {
       colors: {
         cyber: {
-          dark: '#0a0d14',
-          card: '#111726',
+          dark: '#090d16',
+          surface: '#0d1322',
+          card: '#111827',
           border: '#1e293b',
-          accent: '#00f2fe',
+          accent: '#06b6d4',
           cyan: '#06b6d4',
           emerald: '#10b981',
           rose: '#f43f5e',
           amber: '#f59e0b',
         },
       },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['Fira Code', 'JetBrains Mono', 'Menlo', 'Monaco', 'Consolas', 'Courier New', 'monospace'],
+      },
     },
   },
   plugins: [],
 }
+

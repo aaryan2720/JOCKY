@@ -179,9 +179,13 @@ async def test_full_system_validation_workflow(tmp_path):
     assert ingest_result.status == "ok"
     assert ingest_result.ingested == 5
 
+    # Mark job as completed
+    await job_svc_1.complete_job(job_id)
+
     # Verify artifacts retrieved from database
     persisted_artifacts = await artifact_svc_1.list_artifacts(job_id=job_id)
     assert len(persisted_artifacts) == 5
+
 
     # -------------------------------------------------------------
     # Step 6: Detection Correlation & Deterministic Deduplication

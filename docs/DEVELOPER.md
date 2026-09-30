@@ -182,14 +182,25 @@ report to server
 
 ---
 
-## 7. Known Limitations & Verification Scope
+## 7. UI Polish & Design System (Impeccable Pass)
+
+- **Design System & Aesthetics**: Modernized dark forensic palette (`#090d16` base, `#0d1322` card surfaces, `#1e293b` borders) with restrained semantic accents (emerald for online/clean, amber for warning/in_progress, rose for high/critical threats, cyan for technical identifiers).
+- **Typography & Scanability**: High-contrast typography with monospace formatting applied selectively to forensic values (hashes, IPs, PIDs, file paths, rule IDs, DSL code) and tabular numbers (`tabular-nums`).
+- **Endpoint Architecture Visibility**: Updated dashboard to accurately reflect all 10/10 real forensic collectors active on the endpoint agent runtime.
+- **Triage & Evidence Chain-of-Custody**: Threat alerts display full explainable evidence chains with quick-copy interactions for rule IDs, agent IDs, and artifact payloads.
+- **Accessibility & Focus Rings**: Visible high-contrast focus rings (`focus-ring`), accessible keyboard navigation on list items and buttons, accessible screen-reader status indicators.
+- **Responsive Behavior**: Desktop and laptop layouts optimized with flexible grid columns, responsive tables, and zero-overflow drawer panels.
+
+---
+
+## 8. Known Limitations & Verification Scope
 
 - **Linux Runtime Live Host Execution**: Linux build tags and syscall parsers (`/proc/modules`, `journalctl`, `syslog`, `/etc/passwd`) compile cleanly and are verified with unit tests and mock parsers; live Linux kernel execution requires a Linux host or VM.
 - **Local Host Docker CLI**: Docker CLI is not installed on the local Windows host; database persistence is validated locally via async SQLite/PostgreSQL drivers and verified compatible with `docker-compose.yml`.
 
 ---
 
-## 8. Developer Handoff Notes
+## 9. Developer Handoff Notes
 
 ### Running All Test Suites
 ```bash
@@ -207,3 +218,4 @@ cd ../frontend
 npm test -- --run
 npm run build
 ```
+

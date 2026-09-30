@@ -14,16 +14,16 @@ export const ErrorBanner: React.FC<ErrorBannerProps> = ({
   onRetry,
 }) => {
   return (
-    <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+    <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/70 text-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md shadow-rose-950/20">
       <div className="flex items-start gap-3">
         <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
         <div>
-          <h4 className="text-sm font-semibold text-rose-300">{title}</h4>
-          <p className="text-xs text-rose-300/80 mt-0.5 leading-relaxed">{message}</p>
+          <h4 className="text-xs font-bold uppercase tracking-wider font-mono text-rose-300">{title}</h4>
+          <p className="text-xs text-rose-200/90 mt-0.5 leading-relaxed font-mono">{message}</p>
         </div>
       </div>
       {onRetry && (
-        <Button variant="danger" size="sm" onClick={onRetry} className="shrink-0">
+        <Button variant="danger" size="sm" onClick={onRetry} className="shrink-0 font-mono">
           <RefreshCw className="w-3.5 h-3.5" />
           Retry
         </Button>
@@ -31,3 +31,4 @@ export const ErrorBanner: React.FC<ErrorBannerProps> = ({
     </div>
   )
 }
+
